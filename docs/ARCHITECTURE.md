@@ -1,32 +1,38 @@
-# Arquitectura del MVP AlimentaVES
+# Arquitectura que acordamos para AlimentaVES
 
-## Objetivo
-Conectar donantes de excedentes aptos con comedores populares de Villa El Salvador, demostrando un ciclo completo y métricas de impacto **simuladas**. Evitar almacenamiento de datos personales sensibles en el prototipo.
+La idea es sencilla: Diego hace el frontend y Anthony prepara las API y la base de datos. Así avanzamos en paralelo y juntamos ambas partes para la demostración.
 
-## Componentes
 ```text
-Navegador (React/Vite, :5173)
-        | HTTP JSON, /api/*
-        v
-    FastAPI (:8000)
-        | transacciones SQL
-        v
-  SQLite (back/alimenta_ves.db)
+                 NAVEGADOR
+                     |
+             React + Vite (:5173)
+                     |
+               fetch() / JSON
+                     |
+                 FastAPI (:8000)
+                     |
+              SQLite en /data
+              (volumen Docker)
 ```
-SQLite se usa para que ambos integrantes puedan levantar el MVP inmediatamente sin aprovisionar nube. La base local es persistente, no se sube a GitHub. Migrar a PostgreSQL solo si el tiempo lo permite.
 
-## Entidades
-- **Donation:** id, donor_name, food_name, quantity_kg, pickup_address, expires_at, notes, status, reserved_by, created_at, delivered_at.
-- **Status:** `available` → `reserved` → `delivered`. No hay cambios inversos en el MVP.
-- **Stats:** donaciones por estado, kg entregados y raciones aproximadas (supuesto de prototipo: 0.35 kg/ración).
+- `front/`: React + TypeScript, estilos y `src/lib/api.ts`.
+- `back/`: FastAPI + Pydantic + SQLite, validaciones y rutas.
+- `compose.yaml`: levanta ambos, con recarga automática durante el desarrollo.
+- `docs/API_CONTRACT.md`: es nuestro acuerdo para no romper la integración.
+- `docs/FASES.md`: lo que cada uno tiene que terminar por horario.
 
-## Decisiones del hackatón
-- Backend: FastAPI + Pydantic + sqlite3 (sin ORM para evitar tiempo de migraciones).
-- Frontend: React + TypeScript + Vite y fetch nativo.
-- Backend escucha :8000; frontend :5173. CORS restringido a orígenes locales de desarrollo.
-- Respuestas HTTP 404 cuando no existe una donación; 409 si ya fue reservada/entregada o está vencida.
-- API sin autenticación: **apta únicamente para una demo local**, no para exponer públicamente con datos reales.
-- Semillas de datos ficticios se activan con `DEMO_SEED=1` y solo se insertan cuando la tabla está vacía.
+### Datos que guardamos
 
-## Fuera del alcance del MVP
-Inicio de sesión, geolocalización exacta, SMS/WhatsApp, mapas, pagos, verificación de donantes/comedor, gestión de riesgos sanitarios y despliegue productivo. Son trabajo posterior, no promesas de la demo.
+Cada donación tiene: `id`, `donor_name`, `food_name`, `quantity_kg`, `pickup_address`, `expires_at`, `notes`, `status`, `reserved_by`, `created_at` y `delivered_at`.
+
+El estado sigue este orden: `available` → `reserved` → `delivered`.
+
+Las estadísticas muestran disponibles, reservadas, entregadas, kilos entregados y **raciones estimadas**. Para la demo usamos el supuesto de **0.35 kg por ración**; esto no significa que hayamos medido beneficiarios reales.
+
+### Lo que decidimos no hacer ahora
+
+Login, pasarelas de pago, WhatsApp, mapas, geolocalización, servicios externos y administración de múltiples roles. Son ideas que podríamos trabajar después del hackatón. Primero queremos que el recorrido básico funcione.
+
+Usamos datos ficticios; si más adelante trabajamos con personas y alimentos reales, necesitamos autenticación, privacidad, verificación de comedores y protocolos sanitarios.
+
+Ver [DOCKER.md](DOCKER.md) para levantar servicios y conservar la base de datos.

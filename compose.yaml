@@ -1,0 +1,42 @@
+# AlimentaVES - entorno de desarrollo local para los dos integrantes.
+# Ejecutar desde la raiz: docker compose up --build -d
+services:
+  back:
+    build:
+      context: ./back
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ALIMENTAVES_DB_PATH: /data/alimenta_ves.db
+      DEMO_SEED: "1"
+      FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    volumes:
+      - ./back:/app
+      - alimentaves_db:/data
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+  front:
+    build:
+      context: ./front
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      # Esta URL la usa el navegador del usuario, no el contenedor.
+      VITE_API_URL: http://localhost:8000/api
+    volumes:
+      - ./front:/app
+      - alimentaves_node_modules:/app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    depends_on:
+      back:
+        condition: service_healthy
+
+volumes:
+  alimentaves_db:
+  alimentaves_node_modules:
