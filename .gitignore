@@ -1,0 +1,26 @@
+# Secrets / local settings
+.env
+.env.*
+!.env.example
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+# Local database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+# Node
+node_modules/
+dist/
+.vite/
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
