@@ -25,12 +25,14 @@ def client(monkeypatch):
     monkeypatch.setenv("DEMO_SEED", "0")
     with TestClient(app) as test_client:
         with db.connect() as conn:
-            conn.execute("TRUNCATE TABLE donations")
+            # Request history references donations; truncate both tables in
+            # this test-only database.
+            conn.execute("TRUNCATE TABLE donation_requests, donations")
         try:
             yield test_client
         finally:
             with db.connect() as conn:
-                conn.execute("TRUNCATE TABLE donations")
+                conn.execute("TRUNCATE TABLE donation_requests, donations")
 
 
 def valid_payload():

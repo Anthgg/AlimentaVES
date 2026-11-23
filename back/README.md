@@ -79,6 +79,16 @@ Si necesitamos ejecutar Python directamente, podemos instalar las dependencias c
 | PATCH | /api/admin/community-kitchen-claims/{id}/decision | Aprobar o rechazar solicitud (admin) |
 | GET | /api/admin/community-kitchen-profiles | Listar perfiles para revisión (admin) |
 | PATCH | /api/admin/community-kitchen-profiles/{id}/decision | Publicar o rechazar perfil (admin) |
+| POST | /api/community-kitchens/{id}/photos | Subir fotografía para revisión (miembro) |
+| GET | /api/community-kitchens/{id}/photos | Listar fotografías publicadas |
+| GET | /api/media/{photo_id} | Ver fotografía publicada |
+| GET | /api/admin/community-kitchen-photos | Listar fotos pendientes (admin) |
+| PATCH | /api/admin/community-kitchen-photos/{id}/decision | Aprobar o rechazar foto (admin) |
+| POST | /api/donations/{id}/requests | Solicitar una donación (miembro) |
+| GET | /api/donation-requests | Consultar historial propio |
+| GET | /api/donation-requests/{id} | Consultar solicitud propia |
+| GET | /api/admin/donation-requests | Listar solicitudes (admin) |
+| PATCH | /api/admin/donation-requests/{id}/decision | Aprobar o rechazar y reservar (admin) |
 | GET | /api/admin/users | Listar cuentas sin hashes (admin) |
 | GET | /api/admin/community-kitchens | Consultar catálogo de comedores (admin) |
 | GET | /api/admin/donations | Consultar donaciones (admin) |

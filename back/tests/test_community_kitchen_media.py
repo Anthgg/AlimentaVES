@@ -11,11 +11,6 @@ from app import database as db
 from app import community_kitchen_media_db as media_db
 from app.auth import hash_password
 from app.main import app
-from app.routes import community_kitchen_media as media
-
-
-if not any(getattr(route, "path", None) == "/api/media/{photo_id}" for route in app.routes):
-    app.include_router(media.router, prefix="/api")
 
 TEST_PASSWORD = "Fictitious-Password-123!"
 
