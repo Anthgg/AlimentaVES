@@ -1,8 +1,22 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { api } from './lib/api'
-import type { CreateDonation, Donation, DonationStatus, Stats } from './types'
+import type { CommunityKitchen, CreateDonation, Donation, DonationStatus, Stats } from './types'
+import {
+  DonationsPage,
+  ErrorNotice,
+  Footer,
+  Header,
+  HomePage,
+  ImpactPage,
+  KitchensPage,
+  PublishPage,
+  ReservationDialog,
+  SuccessNotice,
+  type DonationField,
+  type Page,
+} from './AppViews'
 
-const initial: CreateDonation = {
+const initialDonation: CreateDonation = {
   donor_name: '',
   food_name: '',
   quantity_kg: 1,
@@ -11,138 +25,232 @@ const initial: CreateDonation = {
   notes: '',
 }
 
-const statusLabels: Record<DonationStatus, string> = {
-  available: 'Disponible',
-  reserved: 'Reservada',
-  delivered: 'Entregada',
+function pageFromHash(): Page {
+  const candidate = window.location.hash.replace(/^#\/?/, '') as Page
+  return ['inicio', 'donaciones', 'publicar', 'comedores', 'impacto'].includes(candidate) ? candidate : 'inicio'
 }
 
 export default function App() {
+  const [page, setPage] = useState<Page>(() => typeof window === 'undefined' ? 'inicio' : pageFromHash())
   const [donations, setDonations] = useState<Donation[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [kitchens, setKitchens] = useState<CommunityKitchen[]>([])
   const [filter, setFilter] = useState<DonationStatus | ''>('')
-  const [form, setForm] = useState<CreateDonation>(initial)
+  const [search, setSearch] = useState('')
+  const [kitchenSearch, setKitchenSearch] = useState('')
+  const [kitchenLimit, setKitchenLimit] = useState(20)
+  const [donationsLoading, setDonationsLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [kitchensLoading, setKitchensLoading] = useState(false)
+  const [kitchensLoaded, setKitchensLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState<CreateDonation>(initialDonation)
+  const [formErrors, setFormErrors] = useState<Partial<Record<DonationField, string>>>({})
+  const [formSubmitted, setFormSubmitted] = useState(false)
+  const [reservation, setReservation] = useState<Donation | null>(null)
+  const [reservationName, setReservationName] = useState('')
+  const [reservationError, setReservationError] = useState('')
+  const [donationsError, setDonationsError] = useState('')
+  const [statsError, setStatsError] = useState('')
+  const [kitchensError, setKitchensError] = useState('')
+  const [actionError, setActionError] = useState('')
   const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
+  const dialogRef = useRef<HTMLDialogElement | null>(null)
+  const reservationNameRef = useRef<HTMLInputElement | null>(null)
+  const fieldRefs = useRef<Partial<Record<DonationField, HTMLInputElement>>>({})
+  const kitchenRequestStarted = useRef(false)
 
-  const load = useCallback(async () => {
+  const navigate = (nextPage: Page) => {
+    const nextHash = `#${nextPage}`
+    if (window.location.hash !== nextHash) window.history.pushState({ page: nextPage }, '', nextHash)
+    setPage(nextPage)
+    setActionError('')
+    setMessage('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const syncPage = () => setPage(pageFromHash())
+    window.addEventListener('popstate', syncPage)
+    window.addEventListener('hashchange', syncPage)
+    return () => {
+      window.removeEventListener('popstate', syncPage)
+      window.removeEventListener('hashchange', syncPage)
+    }
+  }, [])
+
+  const loadDonations = useCallback(async () => {
+    setDonationsLoading(true)
     try {
-      const [items, summary] = await Promise.all([
-        api.listDonations(filter || undefined),
-        api.stats(),
-      ])
-      setDonations(items)
-      setStats(summary)
-      setError('')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo conectar a la API')
+      setDonations(await api.listDonations(filter || undefined))
+      setDonationsError('')
+    } catch (error) {
+      setDonationsError(error instanceof Error ? error.message : 'No se pudieron cargar las donaciones.')
+    } finally {
+      setDonationsLoading(false)
     }
   }, [filter])
 
-  useEffect(() => { void load() }, [load])
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      setStats(await api.stats())
+      setStatsError('')
+    } catch (error) {
+      setStatsError(error instanceof Error ? error.message : 'No se pudieron cargar las estadísticas.')
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const loadKitchens = useCallback(async () => {
+    if (kitchenRequestStarted.current || kitchensLoaded) return
+    kitchenRequestStarted.current = true
+    setKitchensLoading(true)
+    setKitchensError('')
+    try {
+      setKitchens(await api.listCommunityKitchens())
+      setKitchensLoaded(true)
+    } catch (error) {
+      kitchenRequestStarted.current = false
+      setKitchensError(error instanceof Error ? error.message : 'No se pudieron cargar los comedores.')
+    } finally {
+      setKitchensLoading(false)
+    }
+  }, [kitchensLoaded])
+
+  useEffect(() => { void loadDonations() }, [loadDonations])
+  useEffect(() => { void loadStats() }, [loadStats])
+  useEffect(() => { if (page === 'comedores') void loadKitchens() }, [loadKitchens, page])
+  useEffect(() => { if (reservation && dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal() }, [reservation])
+
+  const visibleDonations = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase('es-PE')
+    return term ? donations.filter(item => `${item.food_name} ${item.donor_name} ${item.pickup_address} ${item.reserved_by ?? ''}`.toLocaleLowerCase('es-PE').includes(term)) : donations
+  }, [donations, search])
+  const matchingKitchens = useMemo(() => {
+    const term = kitchenSearch.trim().toLocaleLowerCase('es-PE')
+    return term ? kitchens.filter(item => `${item.name} ${item.district} ${item.address ?? ''} ${item.source_status ?? ''}`.toLocaleLowerCase('es-PE').includes(term)) : kitchens
+  }, [kitchens, kitchenSearch])
+  const visibleKitchens = matchingKitchens.slice(0, kitchenLimit)
+
+  const refreshAfterChange = async () => {
+    const [items, updatedStats] = await Promise.all([api.listDonations(), api.stats()])
+    setDonations(items)
+    setStats(updatedStats)
+    setDonationsError('')
+    setStatsError('')
+    setFilter('')
+    setSearch('')
+  }
+
+  const updateFormField = (field: keyof CreateDonation, value: string | number) => {
+    setForm(current => ({ ...current, [field]: value }))
+    setFormErrors(current => ({ ...current, [field]: undefined }))
+  }
+
+  const publishDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!form.expires_at) {
-      setError('Selecciona una fecha de vencimiento')
+    setFormSubmitted(true)
+    setActionError('')
+    setMessage('')
+    const errors: Partial<Record<DonationField, string>> = {}
+    ;(['donor_name', 'food_name', 'pickup_address'] as const).forEach(field => {
+      if (!form[field].trim()) errors[field] = 'Completa este campo con texto.'
+    })
+    if (!form.expires_at) errors.expires_at = 'Selecciona una fecha de vencimiento.'
+    else if (new Date(form.expires_at).getTime() <= Date.now()) errors.expires_at = 'El vencimiento debe ser una fecha futura.'
+    if (Object.keys(errors).length) {
+      setFormErrors(errors)
+      fieldRefs.current[Object.keys(errors)[0] as DonationField]?.focus()
+      return
+    }
+
+    setBusy(true)
+    try {
+      const payload: CreateDonation = { ...form, donor_name: form.donor_name.trim(), food_name: form.food_name.trim(), pickup_address: form.pickup_address.trim(), expires_at: new Date(form.expires_at).toISOString(), notes: form.notes?.trim() || '' }
+      await api.createDonation(payload)
+      setForm(initialDonation)
+      setFormErrors({})
+      setFormSubmitted(false)
+      navigate('donaciones')
+      setMessage('Donación publicada correctamente.')
+      try { await refreshAfterChange() }
+      catch { setActionError('La donación se guardó, pero no se pudo actualizar el listado. Vuelve a cargar la página.') }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo publicar la donación.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reserveDonation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!reservation) return
+    const name = reservationName.trim()
+    if (name.length < 2) {
+      setReservationError('Escribe el nombre del comedor para continuar.')
+      reservationNameRef.current?.focus()
       return
     }
     setBusy(true)
+    setReservationError('')
+    setActionError('')
     setMessage('')
     try {
-      await api.createDonation({ ...form, expires_at: new Date(form.expires_at).toISOString() })
-      setForm(initial)
-      setMessage('Donación registrada correctamente')
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error registrando donación')
+      await api.reserve(reservation.id, name)
+      dialogRef.current?.close()
+      setMessage('Reserva registrada. Coordina la entrega con el donante.')
+      try { await refreshAfterChange() }
+      catch { setActionError('La reserva se guardó, pero no se pudo actualizar el listado. Vuelve a cargar la página.') }
+    } catch (error) {
+      setReservationError(error instanceof Error ? error.message : 'No se pudo completar la reserva.')
     } finally {
       setBusy(false)
     }
   }
 
-  const update = async (action: () => Promise<Donation>) => {
+  const confirmDelivery = async (donation: Donation) => {
     setBusy(true)
+    setActionError('')
     setMessage('')
     try {
-      await action()
-      setMessage('Estado actualizado')
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo actualizar')
+      await api.deliver(donation.id)
+      setMessage('Entrega confirmada correctamente.')
+      try { await refreshAfterChange() }
+      catch { setActionError('La entrega se guardó, pero no se pudo actualizar el listado. Vuelve a cargar la página.') }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo confirmar la entrega.')
     } finally {
       setBusy(false)
     }
   }
+
+  const retryKitchens = () => {
+    kitchenRequestStarted.current = false
+    setKitchensLoaded(false)
+    void loadKitchens()
+  }
+  const retryCurrentData = () => {
+    setActionError('')
+    if (page === 'comedores') retryKitchens()
+    else if (page === 'impacto' || page === 'inicio') void loadStats()
+    else void loadDonations()
+  }
+  const hasDataError = page === 'comedores' ? kitchensError : page === 'impacto' || page === 'inicio' ? statsError : donationsError
 
   return (
     <main className="layout">
-      <header className="header">
-        <div className="brand">Alimenta<span>VES</span></div>
-        <div className="tag">HackODS UA 2026 · ODS 2 y 12</div>
-      </header>
-      <section className="hero">
-        <p className="eyebrow">Conectando solidaridad en Villa El Salvador</p>
-        <h1>Rescatemos alimentos. Compartamos oportunidades.</h1>
-        <p>Prototipo de conexión entre donantes y comedores populares. Registros de muestra ficticios.</p>
-      </section>
-      <section className="stats" aria-label="Estadísticas de la demostración">
-        <article><strong>{stats?.available ?? '...'}</strong><span>Disponibles</span></article>
-        <article><strong>{stats?.reserved ?? '...'}</strong><span>Reservadas</span></article>
-        <article><strong>{stats?.delivered ?? '...'}</strong><span>Entregadas</span></article>
-        <article><strong>{stats?.kilograms_delivered ?? '...'} kg</strong><span>Alimentos entregados (demo)</span></article>
-      </section>
-      {error && <div className="alert error" role="alert">{error} <button onClick={() => void load()}>Reintentar</button></div>}
-      {message && <div className="alert success" role="status">{message}</div>}
-      <section className="columns">
-        <div className="panel">
-          <div className="panelHeader">
-            <h2>Donaciones</h2>
-            <select aria-label="Filtrar por estado" value={filter} onChange={e => setFilter(e.target.value as DonationStatus | '')}>
-              <option value="">Todas</option>
-              <option value="available">Disponibles</option>
-              <option value="reserved">Reservadas</option>
-              <option value="delivered">Entregadas</option>
-            </select>
-          </div>
-          <div className="donations">
-            {donations.length === 0 && <p className="muted">Sin registros. Publica una donación para comenzar.</p>}
-            {donations.map(item => (
-              <article className="donation" key={item.id}>
-                <div className="donationTop">
-                  <h3>{item.food_name}</h3>
-                  <span className={'pill ' + item.status}>{statusLabels[item.status]}</span>
-                </div>
-                <p><b>{item.quantity_kg} kg</b> · {item.donor_name}</p>
-                <p className="muted">{item.pickup_address}</p>
-                <p className="muted">Vence: {new Date(item.expires_at).toLocaleDateString('es-PE')}</p>
-                {item.reserved_by && <p className="muted">Comedor: {item.reserved_by}</p>}
-                {item.status === 'available' && (
-                  <button disabled={busy || new Date(item.expires_at).getTime() <= Date.now()} onClick={() => void update(() => api.reserve(item.id, 'Comedor ficticio de demostración'))}>Reservar (demo)</button>
-                )}
-                {item.status === 'reserved' && (
-                  <button disabled={busy} onClick={() => void update(() => api.deliver(item.id))}>Confirmar entrega</button>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
-        <div className="panel">
-          <h2>Publicar alimento</h2>
-          <p className="muted">Utiliza datos inventados. No ingreses teléfonos ni direcciones privadas.</p>
-          <form onSubmit={submit}>
-            <label>Donante ficticio<input required minLength={2} maxLength={100} placeholder="Ej.: Donante de prueba" value={form.donor_name} onChange={e => setForm({ ...form, donor_name: e.target.value })} /></label>
-            <label>Alimento<input required minLength={2} maxLength={120} placeholder="Ej.: Arroz sellado" value={form.food_name} onChange={e => setForm({ ...form, food_name: e.target.value })} /></label>
-            <label>Kilogramos<input required type="number" min="0.01" max="10000" step="0.01" value={form.quantity_kg} onChange={e => setForm({ ...form, quantity_kg: Number(e.target.value) })} /></label>
-            <label>Punto de entrega ficticio<input required minLength={4} maxLength={200} placeholder="Ej.: Punto de prueba, VES" value={form.pickup_address} onChange={e => setForm({ ...form, pickup_address: e.target.value })} /></label>
-            <label>Vencimiento<input required type="datetime-local" value={form.expires_at} onChange={e => setForm({ ...form, expires_at: e.target.value })} /></label>
-            <label>Notas<textarea maxLength={500} rows={2} value={form.notes ?? ''} onChange={e => setForm({ ...form, notes: e.target.value })} /></label>
-            <button className="primary" type="submit" disabled={busy}>{busy ? 'Procesando...' : 'Publicar donación'}</button>
-          </form>
-        </div>
-      </section>
-      <footer>Demo educativa · No representa un servicio activo de distribución ni una evaluación sanitaria. Raciones estimadas: 0.35 kg/ración.</footer>
+      <Header page={page} onNavigate={navigate} />
+      {(actionError || hasDataError) && <ErrorNotice message={actionError || hasDataError} onRetry={retryCurrentData} />}
+      {message && <SuccessNotice message={message} />}
+      {page === 'inicio' && <HomePage stats={stats} loading={statsLoading} onNavigate={navigate} />}
+      {page === 'donaciones' && <DonationsPage donations={donations} visible={visibleDonations} loading={donationsLoading} error={donationsError} filter={filter} search={search} busy={busy} onFilter={setFilter} onSearch={setSearch} onClear={() => { setSearch(''); setFilter('') }} onPublish={() => navigate('publicar')} onReserve={donation => { setReservation(donation); setReservationName(''); setReservationError('') }} onDeliver={donation => void confirmDelivery(donation)} />}
+      {page === 'publicar' && <PublishPage form={form} errors={formErrors} submitted={formSubmitted} busy={busy} onSubmit={publishDonation} onChange={updateFormField} onFieldRef={(field, node) => { fieldRefs.current[field] = node ?? undefined }} onCancel={() => navigate('donaciones')} />}
+      {page === 'comedores' && <KitchensPage kitchens={kitchens} matching={matchingKitchens} visible={visibleKitchens} loading={kitchensLoading} error={kitchensError} search={kitchenSearch} onSearch={value => { setKitchenSearch(value); setKitchenLimit(20) }} onClear={() => setKitchenSearch('')} onLoadMore={() => setKitchenLimit(count => count + 20)} />}
+      {page === 'impacto' && <ImpactPage stats={stats} loading={statsLoading} onNavigate={navigate} />}
+      <Footer />
+      <ReservationDialog reservation={reservation} name={reservationName} error={reservationError} busy={busy} dialogRef={dialogRef} nameRef={reservationNameRef} onNameChange={value => { setReservationName(value); setReservationError('') }} onSubmit={reserveDonation} onClose={() => { setReservation(null); setReservationError(''); setReservationName('') }} />
     </main>
   )
 }
