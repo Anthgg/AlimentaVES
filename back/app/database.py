@@ -1,16 +1,98 @@
 """Consultas PostgreSQL de AlimentaVES."""
+import atexit
 from datetime import datetime
 from decimal import Decimal
+from threading import Lock
+from typing import Any
 from uuid import UUID, uuid4
 
 import psycopg
+from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 
-from .config import database_url
+from .config import (
+    database_pool_max_size,
+    database_pool_min_size,
+    database_pool_timeout_seconds,
+    database_sslmode,
+    database_url,
+)
 
 
-def connect() -> psycopg.Connection:
-    return psycopg.connect(database_url(), row_factory=dict_row)
+_POOL: ConnectionPool | None = None
+_POOL_LOCK = Lock()
+
+
+class _PooledConnection:
+    """Return a checked-out connection to its pool when its context closes."""
+
+    def __init__(self, pool: ConnectionPool, connection: psycopg.Connection):
+        self._pool = pool
+        self._connection = connection
+        self._released = False
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._connection, name)
+
+    def __enter__(self) -> psycopg.Connection:
+        if self._released:
+            raise RuntimeError("La conexión ya fue devuelta al pool")
+        try:
+            self._connection.__enter__()
+        except Exception:
+            self._release()
+            raise
+        return self._connection
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool | None:
+        if self._released:
+            return None
+        try:
+            return self._connection.__exit__(exc_type, exc_value, traceback)
+        finally:
+            self._release()
+
+    def close(self) -> None:
+        """Release the connection, preserving the direct-connect API contract."""
+        self._release()
+
+    def _release(self) -> None:
+        if not self._released:
+            self._released = True
+            self._pool.putconn(self._connection)
+
+
+def connect() -> _PooledConnection:
+    """Borrow a bounded connection while preserving psycopg's close/context API."""
+    global _POOL
+    with _POOL_LOCK:
+        if _POOL is None:
+            _POOL = ConnectionPool(
+                conninfo=database_url(),
+                kwargs={"row_factory": dict_row, "sslmode": database_sslmode()},
+                min_size=database_pool_min_size(),
+                max_size=database_pool_max_size(),
+                timeout=database_pool_timeout_seconds(),
+                name="alimentaves-postgres",
+                open=True,
+            )
+        pool = _POOL
+    return _PooledConnection(
+        pool,
+        pool.getconn(timeout=database_pool_timeout_seconds()),
+    )
+
+
+def close_pool() -> None:
+    """Close the per-instance pool during FastAPI shutdown."""
+    global _POOL
+    with _POOL_LOCK:
+        pool, _POOL = _POOL, None
+    if pool is not None:
+        pool.close()
+
+
+atexit.register(close_pool)
 
 
 def init_db() -> None:
