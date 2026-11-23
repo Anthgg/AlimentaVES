@@ -7,8 +7,8 @@ cd AlimentaVES
 ```
 
 ## Responsabilidades
-- Backend: trabajar en `back/` y mantener `docs/API_CONTRACT.md` actualizado.
-- Frontend: trabajar en `front/` y consumir `src/lib/api.ts`.
+- **Jesus Anthony Garamendi Gonzales (Backend):** trabajar en `back/` y mantener `docs/API_CONTRACT.md` actualizado.
+- **Diego Manuel Pizango Chanchari (Frontend):** trabajar en `front/` y consumir `src/lib/api.ts`.
 - Ambos: aprobar cambios al contrato antes de alterar request/response.
 
 ## Ramas propuestas
