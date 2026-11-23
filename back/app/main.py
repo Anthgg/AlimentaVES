@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import cors_origins, demo_seed_enabled
 from .database import init_db
-from .routes import donations, stats
+from .routes import community_kitchens, donations, stats
 from .seed import seed_demo_if_empty
 
 @asynccontextmanager
@@ -34,3 +34,4 @@ def health():
 
 app.include_router(donations.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+app.include_router(community_kitchens.router, prefix="/api")
