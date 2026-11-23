@@ -38,7 +38,8 @@ npm run dev
 2. Listado de donaciones disponibles.
 3. Formulario de registro de alimentos.
 4. Reserva y confirmación de entrega.
-5. Panel con el resumen de donaciones.
+5. Directorio de comedores populares con OpenStreetMap.
+6. Panel con el resumen de donaciones.
 
 ## Integración con el backend
 
@@ -52,8 +53,16 @@ El cliente HTTP se encuentra en `src/lib/api.ts`. Los endpoints disponibles son:
 | Reservar | PATCH /api/donations/{id}/reserve |
 | Confirmar entrega | PATCH /api/donations/{id}/deliver |
 | Ver estadísticas | GET /api/stats |
+| Listar comedores populares | GET /api/community-kitchens |
+| Consultar comedor | GET /api/community-kitchens/{id} |
 
 El contrato con ejemplos de peticiones y respuestas está en [API_CONTRACT.md](../docs/API_CONTRACT.md).
+
+## Comedores y OpenStreetMap
+
+El directorio consume las coordenadas WGS84 de `GET /api/community-kitchens` y las muestra en el mapa incrustado de OpenStreetMap. También incluye un enlace para abrir la ubicación directamente en OpenStreetMap. No requiere API key ni configuración adicional.
+
+El mapa incluye atribución a OpenStreetMap contributors. La ubicación y el estado del comedor proceden de la fuente pública indicada por el backend; no representan una verificación de operación actual.
 
 ## Verificación
 
