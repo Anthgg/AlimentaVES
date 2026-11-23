@@ -1,91 +1,89 @@
-# AlimentaVES 🌱
+# AlimentaVES
 
-Proyecto que estamos haciendo para el **HackODS UA 2026**. La idea es que los alimentos que sobran y todavía están en buen estado puedan llegar a comedores populares de Villa El Salvador, en vez de desperdiciarse.
+**HackODS UA 2026 · Villa El Salvador**
 
-Nos estamos enfocando en el **ODS 2: Hambre Cero** y también en el **ODS 12: Producción y Consumo Responsables**.
+AlimentaVES es una plataforma web que busca conectar donantes de alimentos con comedores populares. Con el proyecto queremos ayudar a aprovechar alimentos aptos para consumo que, de otro modo, podrían desperdiciarse.
 
-## ¿Quiénes somos?
+Nuestro trabajo se relaciona con el **ODS 2 (Hambre Cero)** y el **ODS 12 (Producción y Consumo Responsables)**.
 
-Somos dos estudiantes de Ingeniería de Sistemas:
+## Integrantes
 
-| Integrante | Parte del proyecto |
+| Integrante | Responsabilidad |
 | --- | --- |
-| **Jesus Anthony Garamendi Gonzales** | Backend, base de datos y API |
-| **Diego Manuel Pizango Chanchari** | Frontend, pantallas e integración |
+| Jesus Anthony Garamendi Gonzales | Backend, API y base de datos |
+| Diego Manuel Pizango Chanchari | Frontend e integración |
 
-## ¿Qué queremos mostrar?
+## ¿Cómo funciona?
 
-En la demo una persona podrá publicar una donación de alimentos, un comedor podrá reservarla y después se podrá marcar como entregada. Al final se actualizarán los números del panel.
+1. El donante registra el alimento, su cantidad, la fecha de vencimiento y el punto de recojo.
+2. Las donaciones disponibles aparecen en la plataforma.
+3. Un comedor puede reservar una donación.
+4. Al confirmar la entrega, se actualizan las estadísticas.
 
-Por ahora los nombres, comedores y direcciones de la demo son **ficticios**. Todavía no es una plataforma para coordinar entregas reales; antes habría que validar a los participantes, proteger sus datos y revisar la inocuidad de los alimentos.
+La demostración utiliza nombres y ubicaciones ficticias. Para poner la plataforma en funcionamiento con donaciones reales se necesitarían controles de seguridad alimentaria, verificación de participantes y protección de datos.
 
-## Así está organizado
+## Tecnologías
+
+- **Frontend:** React, TypeScript y Vite.
+- **Backend:** Python, FastAPI y Pydantic.
+- **Base de datos:** PostgreSQL 16.
+- **Entorno de desarrollo:** Docker Compose.
+
+## Organización del repositorio
 
 ```text
 AlimentaVES/
-├── back/              # Anthony: Python + FastAPI + SQLite
-│   ├── app/
-│   ├── tests/
-│   ├── Dockerfile
-│   └── README.md
-├── front/             # Diego: React + TypeScript + Vite
-│   ├── src/
-│   ├── Dockerfile
-│   └── README.md
-├── docs/
-│   ├── FASES.md        # Nuestro orden de trabajo
-│   ├── API_CONTRACT.md # Rutas y JSON acordados
-│   ├── ARCHITECTURE.md
-│   ├── DOCKER.md
-│   └── WORKFLOW.md
-└── compose.yaml       # Levanta los dos servicios
+├── back/                  API y pruebas de backend
+├── front/                 Interfaz y cliente HTTP
+├── docker/postgres/init/  Base de pruebas
+├── docs/                  Arquitectura, fases y contrato de API
+└── compose.yaml           Servicios PostgreSQL, backend y frontend
 ```
 
-## Cómo levantar todo con Docker
+## Instalación
 
-Necesitamos **Docker Desktop** abierto (o Docker Engine con Compose).
+Se necesita Git y Docker con Compose instalado.
 
 ```bash
 git clone https://github.com/Anthgg/AlimentaVES.git
 cd AlimentaVES
 docker compose up --build -d
+docker compose ps
 ```
 
-Cuando ambos servicios estén listos:
-- **Página web:** http://localhost:5173
-- **Documentación de la API:** http://localhost:8000/docs
-- **Prueba rápida del backend:** http://localhost:8000/api/health
+Direcciones del proyecto:
 
-Para ver qué sucede:
+| Servicio | Dirección |
+| --- | --- |
+| Aplicación web | http://localhost:5173 |
+| Documentación de API | http://localhost:8000/docs |
+| Estado de API | http://localhost:8000/api/health |
+| PostgreSQL | localhost:5433 |
+
+Para consultar los registros:
+
 ```bash
-docker compose ps
 docker compose logs -f
 ```
 
-Para detener sin borrar los datos guardados:
+Para detener el proyecto sin borrar la información:
+
 ```bash
 docker compose down
 ```
 
-**No usar `docker compose down -v`**, porque sí elimina el volumen de la base de datos. El proyecto también se puede ejecutar sin Docker; las instrucciones están dentro de `back/README.md` y `front/README.md`.
+La información de PostgreSQL se conserva en un volumen Docker. El comando `docker compose down -v` elimina los volúmenes y no debe utilizarse para detener el trabajo diario.
 
-## Cómo vamos a trabajar
+## Desarrollo
 
-- Anthony se concentra en `back/`. Diego se concentra en `front/`.
-- Cada uno crea su rama y manda un Pull Request a `main`, que dejamos como rama estable.
-- Si hay que cambiar el nombre de una ruta o de un campo JSON, primero lo conversamos. El acuerdo está en [docs/API_CONTRACT.md](docs/API_CONTRACT.md).
-- Los tiempos, las fases y lo que tiene que entregar cada uno están en [docs/FASES.md](docs/FASES.md).
+Tenemos separadas las carpetas de backend y frontend para avanzar en paralelo. Los endpoints y campos JSON se encuentran en [el contrato de API](docs/API_CONTRACT.md), mientras que las actividades y horarios están en [nuestro plan de fases](docs/FASES.md).
 
-## Lo que ya hay y lo que falta
+También dejamos las instrucciones de cada parte en [back/README.md](back/README.md) y [front/README.md](front/README.md).
 
-- [x] Separar `back/` y `front/`.
-- [x] Escribir un contrato inicial de API.
-- [x] Crear código base de donaciones y una pantalla inicial.
-- [x] Agregar archivos Docker y plan de fases.
-- [ ] Probar la integración completa con Docker en nuestras laptops.
-- [ ] Terminar el diseño y revisar errores.
-- [ ] Preparar y ensayar el pitch de 3 minutos (máximo 5 diapositivas).
+## Entregables
 
-Es un **MVP de hackatón**, así que preferimos que el flujo principal funcione bien antes de agregar cosas que no lleguemos a terminar.
+- Repositorio con código y documentación.
+- Demostración funcional del registro, reserva y entrega de alimentos.
+- Presentación de tres minutos con un máximo de cinco diapositivas.
 
-**Equipo AlimentaVES**
+**Proyecto desarrollado por Jesus Anthony Garamendi Gonzales y Diego Manuel Pizango Chanchari.**

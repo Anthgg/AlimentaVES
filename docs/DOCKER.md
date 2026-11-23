@@ -1,23 +1,18 @@
-# Cómo usamos Docker en AlimentaVES
+# Entorno Docker de AlimentaVES
 
-Estamos usando Docker Compose para no perder tiempo instalando dos proyectos distintos en cada computadora.
+Usamos Docker Compose para ejecutar el frontend, el backend y PostgreSQL en ambas computadoras.
 
-## Qué levanta
+## Servicios
 
-| Servicio | Tecnología | Puerto local | Qué hace |
+| Servicio | Tecnología | Puerto en la laptop | Uso |
 | --- | --- | --- | --- |
-| `back` | Python 3.12 + FastAPI | 8000 | API para donaciones y estadísticas |
-| `front` | Node 22 + Vite + React | 5173 | Página que consume la API |
-| `alimentaves_db` | Volumen Docker | Sin puerto | Guarda el archivo SQLite fuera del contenedor |
-| `alimentaves_node_modules` | Volumen Docker | Sin puerto | Guarda dependencias Node |
+| db | PostgreSQL 16 | 5433 | Base de datos |
+| back | Python 3.12 + FastAPI | 8000 | API REST |
+| front | Node 22 + React/Vite | 5173 | Aplicación web |
 
-Los dos servicios están en el archivo [compose.yaml](../compose.yaml). Por ahora **no tenemos un contenedor PostgreSQL**: SQLite es suficiente para este MVP y evita reescribir el backend a mitad de la hackatón.
+Los servicios se conectan entre sí mediante la red de Docker. El backend usa `db:5432` y el navegador accede a la API por `localhost:8000`.
 
-## Preparación
-
-1. Tener Docker Desktop encendido o Docker Engine + Compose funcionando.
-2. Clonar el repositorio.
-3. Abrir una terminal en la raíz del proyecto.
+## Inicio
 
 ```bash
 git clone https://github.com/Anthgg/AlimentaVES.git
@@ -26,65 +21,40 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Abrir:
-- http://localhost:5173 → interfaz
-- http://localhost:8000/docs → Swagger para probar las API
-- http://localhost:8000/api/health → debe responder `{"status":"ok"}`
-
-## Comandos útiles
+## Comandos
 
 ```bash
-# Logs de todos los servicios
 docker compose logs -f
-
-# Logs de solo backend o frontend
+docker compose logs -f db
 docker compose logs -f back
 docker compose logs -f front
-
-# Ejecutar tests del backend
 docker compose exec back python -m pytest -q
-
-# Comprobar compilación del frontend
 docker compose exec front npm run build
-
-# Reiniciar un servicio
-docker compose restart back
-
-# Detener sin borrar la base
+docker compose exec db psql -U alimentaves -d alimentaves -c "SELECT COUNT(*) FROM donations;"
 docker compose down
-
-# Reconstruir después de agregar dependencias
-docker compose up --build -d
 ```
 
-⚠️ **No ejecutar `docker compose down -v`** salvo que queramos borrar a propósito la base de datos y las dependencias guardadas.
+## Bases de datos
 
-## Cómo funciona la conexión
+- `alimentaves`: conserva las donaciones utilizadas por la aplicación.
+- `alimentaves_test`: base separada para pruebas automáticas.
 
-```text
-Navegador en nuestra laptop
-  ├── http://localhost:5173 ──> front (Vite/React)
-  └── http://localhost:8000/api ──> back (FastAPI)
-                                      └── /data/alimenta_ves.db (volumen)
+Las dos bases se alojan en PostgreSQL. El volumen `postgres_data` mantiene los datos cuando se detienen o recrean los contenedores.
+
+El comando `docker compose down -v` borra los volúmenes y, por tanto, también las bases de datos. Para detener el trabajo normalmente utilizamos `docker compose down`.
+
+## Ejecución fuera de Docker
+
+Se puede ejecutar FastAPI desde la laptop usando `back/.env.example` como plantilla de variables de entorno. Para conectarlo a PostgreSQL de Docker se utiliza `localhost:5433`. El archivo `.env` no se publica en GitHub.
+
+La contraseña incluida en Compose es exclusivamente para desarrollo local. El proyecto no debe publicarse con esa configuración ni con la API sin autenticación.
+
+## Importante al actualizar desde una versión anterior
+
+Las versiones iniciales del prototipo usaban SQLite. Esta versión utiliza únicamente PostgreSQL y **no migra datos de SQLite**. Si se requiere recuperar registros de una instalación anterior, debe realizarse una exportación y una importación controladas.
+
+Si el volumen PostgreSQL ya existía sin la base `alimentaves_test`, la creación automática no vuelve a ejecutarse. En ese caso se puede crear manualmente:
+
+```bash
+docker compose exec db psql -U alimentaves -d postgres -c "CREATE DATABASE alimentaves_test;"
 ```
-
-**Importante:** desde el navegador se usa `localhost:8000`. El nombre `back` solo se resuelve entre contenedores y no en el navegador.
-
-Los archivos de `./back` y `./front` están montados en los contenedores, por eso vemos nuestros cambios sin reconstruir en cada edición. Si cambiamos las dependencias, sí toca ejecutar `up --build`.
-
-## Si trabajamos en computadoras distintas
-
-Lo más sencillo es que cada uno clone el repositorio y ejecute **el mismo Compose** en su laptop. Así nadie depende de que la otra persona tenga la computadora encendida.
-
-Cada base de datos es local y de prueba, por lo que no se sincroniza automáticamente entre las laptops. Si queremos usar un solo backend por red local, habrá que cambiar la URL de `VITE_API_URL`, configurar `FRONTEND_ORIGINS` y la publicación del puerto; para el MVP no hace falta.
-
-## Si algo falla
-
-- `docker compose ps`: revisar que `back` esté `healthy` y que `front` esté ejecutándose.
-- `docker compose logs back`: revisar errores de Python.
-- `docker compose logs front`: revisar errores de Vite/Node.
-- Error de CORS: comprobar `FRONTEND_ORIGINS` y que el navegador usa localhost:5173.
-- No aparecen cambios: reconstruir imágenes cuando se hayan cambiado dependencias.
-- No llegan datos: entrar a Swagger y probar `GET /api/donations`.
-
-Todo es **desarrollo local**. No hay autenticación ni HTTPS de producción, y no debemos exponer esta API como una plataforma pública de donaciones reales.

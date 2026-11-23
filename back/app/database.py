@@ -1,110 +1,148 @@
-"""Small transactional SQLite store for the time-boxed hackathon demo."""
-import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
-from uuid import uuid4
-from .config import db_path
+"""Consultas PostgreSQL de AlimentaVES."""
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID, uuid4
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS donations (
-    id TEXT PRIMARY KEY,
-    donor_name TEXT NOT NULL,
-    food_name TEXT NOT NULL,
-    quantity_kg REAL NOT NULL CHECK(quantity_kg > 0),
-    pickup_address TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    notes TEXT,
-    status TEXT NOT NULL DEFAULT 'available'
-        CHECK(status IN ('available', 'reserved', 'delivered')),
-    reserved_by TEXT,
-    created_at TEXT NOT NULL,
-    delivered_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_donations_status ON donations(status);
-"""
+import psycopg
+from psycopg.rows import dict_row
 
-def connect() -> sqlite3.Connection:
-    path = db_path()
-    if path != ":memory:":
-        Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, timeout=10)
-    connection.row_factory = sqlite3.Row
-    return connection
+from .config import database_url
+
+
+def connect() -> psycopg.Connection:
+    return psycopg.connect(database_url(), row_factory=dict_row)
+
 
 def init_db() -> None:
-    with connect() as connection:
-        connection.executescript(SCHEMA)
+    with connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS donations (
+                id UUID PRIMARY KEY,
+                donor_name VARCHAR(100) NOT NULL,
+                food_name VARCHAR(120) NOT NULL,
+                quantity_kg NUMERIC(10,2) NOT NULL CHECK (quantity_kg > 0),
+                pickup_address VARCHAR(200) NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                notes VARCHAR(500),
+                status VARCHAR(12) NOT NULL DEFAULT 'available'
+                    CHECK (status IN ('available', 'reserved', 'delivered')),
+                reserved_by VARCHAR(120),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                delivered_at TIMESTAMPTZ
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS donations_status_idx ON donations(status)"
+        )
+
+
+def _id(value: str) -> UUID | None:
+    try:
+        return UUID(value)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _format(row: dict | None) -> dict | None:
+    if row is None:
+        return None
+    data = dict(row)
+    data["id"] = str(data["id"])
+    if isinstance(data["quantity_kg"], Decimal):
+        data["quantity_kg"] = float(data["quantity_kg"])
+    return data
+
 
 def create_donation(data: dict) -> dict:
-    donation_id = str(uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    with connect() as connection:
-        connection.execute(
-            """INSERT INTO donations
-            (id, donor_name, food_name, quantity_kg, pickup_address, expires_at,
-             notes, status, reserved_by, created_at, delivered_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'available', NULL, ?, NULL)""",
-            (
-                donation_id, data["donor_name"], data["food_name"],
-                data["quantity_kg"], data["pickup_address"], data["expires_at"],
-                data.get("notes"), now,
-            ),
-        )
-    return get_donation(donation_id)
+    expiry = data["expires_at"]
+    if isinstance(expiry, str):
+        expiry = datetime.fromisoformat(expiry)
+    with connect() as conn:
+        row = conn.execute("""
+            INSERT INTO donations
+                (id, donor_name, food_name, quantity_kg,
+                 pickup_address, expires_at, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (
+            uuid4(), data["donor_name"], data["food_name"],
+            data["quantity_kg"], data["pickup_address"],
+            expiry, data.get("notes"),
+        )).fetchone()
+    return _format(row)
+
 
 def get_donation(donation_id: str) -> dict | None:
-    with connect() as connection:
-        row = connection.execute(
-            "SELECT * FROM donations WHERE id = ?", (donation_id,)
-        ).fetchone()
-    return dict(row) if row else None
+    ident = _id(donation_id)
+    if ident is None:
+        return None
+    with connect() as conn:
+        return _format(conn.execute(
+            "SELECT * FROM donations WHERE id = %s", (ident,)
+        ).fetchone())
+
 
 def list_donations(status: str | None = None) -> list[dict]:
-    with connect() as connection:
-        if status:
-            rows = connection.execute(
-                "SELECT * FROM donations WHERE status = ? ORDER BY created_at DESC",
-                (status,),
+    with connect() as conn:
+        if status is None:
+            rows = conn.execute(
+                "SELECT * FROM donations ORDER BY created_at DESC, id"
             ).fetchall()
         else:
-            rows = connection.execute(
-                "SELECT * FROM donations ORDER BY created_at DESC"
+            rows = conn.execute(
+                "SELECT * FROM donations WHERE status = %s "
+                "ORDER BY created_at DESC, id", (status,)
             ).fetchall()
-    return [dict(row) for row in rows]
+    return [_format(row) for row in rows]
 
-def transition(donation_id: str, from_status: str, to_status: str,
-               reserved_by: str | None = None) -> dict | None:
-    delivered_at = datetime.now(timezone.utc).isoformat() if to_status == "delivered" else None
-    with connect() as connection:
-        cursor = connection.execute(
-            """UPDATE donations
-               SET status = ?, reserved_by = COALESCE(?, reserved_by),
-                   delivered_at = COALESCE(?, delivered_at)
-               WHERE id = ? AND status = ?""",
-            (to_status, reserved_by, delivered_at, donation_id, from_status),
-        )
-        if cursor.rowcount != 1:
-            return None
-    return get_donation(donation_id)
+
+def transition(
+    donation_id: str, from_status: str, to_status: str,
+    reserved_by: str | None = None,
+) -> dict | None:
+    ident = _id(donation_id)
+    if ident is None:
+        return None
+    with connect() as conn:
+        row = conn.execute("""
+            UPDATE donations
+            SET status = %s,
+                reserved_by = COALESCE(%s, reserved_by),
+                delivered_at = CASE WHEN %s = 'delivered'
+                    THEN NOW() ELSE delivered_at END
+            WHERE id = %s AND status = %s
+                AND (%s <> 'reserved' OR expires_at > NOW())
+            RETURNING *
+        """, (
+            to_status, reserved_by, to_status, ident, from_status, to_status,
+        )).fetchone()
+    return _format(row)
+
 
 def get_stats() -> dict:
-    with connect() as connection:
-        rows = connection.execute(
-            "SELECT status, COUNT(*) AS n, COALESCE(SUM(quantity_kg), 0) AS kg "
-            "FROM donations GROUP BY status"
-        ).fetchall()
-    counts = {status: 0 for status in ("available", "reserved", "delivered")}
-    delivered_kg = 0.0
-    for row in rows:
-        counts[row["status"]] = row["n"]
-        if row["status"] == "delivered":
-            delivered_kg = round(float(row["kg"]), 2)
+    with connect() as conn:
+        row = conn.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'available') AS available,
+                COUNT(*) FILTER (WHERE status = 'reserved') AS reserved,
+                COUNT(*) FILTER (WHERE status = 'delivered') AS delivered,
+                COALESCE(SUM(quantity_kg)
+                    FILTER (WHERE status = 'delivered'), 0)
+                    AS kilograms_delivered
+            FROM donations
+        """).fetchone()
+    kg = round(float(row["kilograms_delivered"]), 2)
     return {
-        **counts,
-        "kilograms_delivered": delivered_kg,
-        "estimated_servings": int((delivered_kg + 1e-9) / 0.35),
+        "available": row["available"],
+        "reserved": row["reserved"],
+        "delivered": row["delivered"],
+        "kilograms_delivered": kg,
+        "estimated_servings": int((kg + 1e-9) / 0.35),
     }
 
+
 def donation_count() -> int:
-    with connect() as connection:
-        return int(connection.execute("SELECT COUNT(*) FROM donations").fetchone()[0])
+    with connect() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) AS total FROM donations"
+        ).fetchone()["total"]

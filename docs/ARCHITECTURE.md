@@ -1,38 +1,45 @@
-# Arquitectura que acordamos para AlimentaVES
+# Arquitectura de AlimentaVES
 
-La idea es sencilla: Diego hace el frontend y Anthony prepara las API y la base de datos. Así avanzamos en paralelo y juntamos ambas partes para la demostración.
+El proyecto se divide en frontend, backend y base de datos. Los tres servicios se ejecutan con Docker Compose.
 
 ```text
-                 NAVEGADOR
-                     |
-             React + Vite (:5173)
-                     |
-               fetch() / JSON
-                     |
-                 FastAPI (:8000)
-                     |
-              SQLite en /data
-              (volumen Docker)
+Navegador
+   |
+   +--- React + Vite (localhost:5173)
+              |
+              | HTTP / JSON
+              v
+          FastAPI (localhost:8000)
+              |
+              | Psycopg 3
+              v
+       PostgreSQL 16 (db:5432)
+              |
+       Volumen postgres_data
 ```
 
-- `front/`: React + TypeScript, estilos y `src/lib/api.ts`.
-- `back/`: FastAPI + Pydantic + SQLite, validaciones y rutas.
-- `compose.yaml`: levanta ambos, con recarga automática durante el desarrollo.
-- `docs/API_CONTRACT.md`: es nuestro acuerdo para no romper la integración.
-- `docs/FASES.md`: lo que cada uno tiene que terminar por horario.
+## Componentes
 
-### Datos que guardamos
+- `front/`: React, TypeScript, formularios, estadísticas y cliente de API.
+- `back/`: FastAPI, validaciones, rutas y consultas SQL.
+- `db`: PostgreSQL 16 con almacenamiento persistente.
+- `docker/postgres/init/`: creación de la base `alimentaves_test` para las pruebas.
+- `compose.yaml`: configuración conjunta de los tres servicios.
 
-Cada donación tiene: `id`, `donor_name`, `food_name`, `quantity_kg`, `pickup_address`, `expires_at`, `notes`, `status`, `reserved_by`, `created_at` y `delivered_at`.
+## Modelo de donaciones
 
-El estado sigue este orden: `available` → `reserved` → `delivered`.
+La tabla `donations` guarda el identificador UUID, nombre del donante, alimento, cantidad en kilogramos, punto de entrega, vencimiento, notas, estado, comedor que reservó y fechas de creación y entrega.
 
-Las estadísticas muestran disponibles, reservadas, entregadas, kilos entregados y **raciones estimadas**. Para la demo usamos el supuesto de **0.35 kg por ración**; esto no significa que hayamos medido beneficiarios reales.
+Los estados siguen el flujo `available` → `reserved` → `delivered`. La reserva utiliza una actualización condicional para evitar reservas duplicadas.
 
-### Lo que decidimos no hacer ahora
+## Información del panel
 
-Login, pasarelas de pago, WhatsApp, mapas, geolocalización, servicios externos y administración de múltiples roles. Son ideas que podríamos trabajar después del hackatón. Primero queremos que el recorrido básico funcione.
+Se calculan donaciones disponibles, reservadas, entregadas y kilogramos entregados. Las raciones se estiman utilizando 0,35 kg por ración como supuesto del prototipo.
 
-Usamos datos ficticios; si más adelante trabajamos con personas y alimentos reales, necesitamos autenticación, privacidad, verificación de comedores y protocolos sanitarios.
+Los datos mostrados en la demostración son ficticios. El sistema todavía no incluye autenticación ni controles sanitarios necesarios para una operación real.
 
-Ver [DOCKER.md](DOCKER.md) para levantar servicios y conservar la base de datos.
+## Documentación relacionada
+
+- [FASES.md](FASES.md)
+- [API_CONTRACT.md](API_CONTRACT.md)
+- [DOCKER.md](DOCKER.md)

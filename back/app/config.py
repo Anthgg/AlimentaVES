@@ -1,16 +1,25 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
-BACK_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BACK_DIR / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-def db_path() -> str:
-    return os.getenv("ALIMENTAVES_DB_PATH", str(BACK_DIR / "alimenta_ves.db"))
+
+def database_url() -> str:
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        raise RuntimeError("Se necesita DATABASE_URL para conectar a PostgreSQL")
+    return url
+
 
 def demo_seed_enabled() -> bool:
     return os.getenv("DEMO_SEED", "0") == "1"
 
+
 def cors_origins() -> list[str]:
-    value = os.getenv("FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    value = os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    )
     return [origin.strip() for origin in value.split(",") if origin.strip()]

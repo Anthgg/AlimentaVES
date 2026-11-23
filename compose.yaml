@@ -1,42 +1,57 @@
-# AlimentaVES - entorno de desarrollo local para los dos integrantes.
-# Ejecutar desde la raiz: docker compose up --build -d
 services:
-  back:
-    build:
-      context: ./back
-    ports:
-      - "127.0.0.1:8000:8000"
+  db:
+    image: postgres:16-alpine
     environment:
-      ALIMENTAVES_DB_PATH: /data/alimenta_ves.db
+      POSTGRES_DB: alimentaves
+      POSTGRES_USER: alimentaves
+      POSTGRES_PASSWORD: alimentaves_local_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alimentaves -d alimentaves"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  back:
+    build: ./back
+    environment:
+      DATABASE_URL: postgresql://alimentaves:alimentaves_local_dev@db:5432/alimentaves
+      ALIMENTAVES_TEST_DATABASE_URL: postgresql://alimentaves:alimentaves_local_dev@db:5432/alimentaves_test
       DEMO_SEED: "1"
       FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./back:/app
-      - alimentaves_db:/data
+    depends_on:
+      db:
+        condition: service_healthy
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=3)"]
       interval: 10s
       timeout: 5s
       start_period: 10s
       retries: 5
 
   front:
-    build:
-      context: ./front
+    build: ./front
+    environment:
+      VITE_API_URL: http://localhost:8000/api
     ports:
       - "127.0.0.1:5173:5173"
-    environment:
-      # Esta URL la usa el navegador del usuario, no el contenedor.
-      VITE_API_URL: http://localhost:8000/api
     volumes:
       - ./front:/app
       - alimentaves_node_modules:/app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     depends_on:
       back:
         condition: service_healthy
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 volumes:
-  alimentaves_db:
+  postgres_data:
   alimentaves_node_modules:
