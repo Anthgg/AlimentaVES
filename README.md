@@ -5,8 +5,8 @@ Plataforma prototipo de rescate de alimentos para conectar donantes y comedores 
 > **Estado:** MVP para hackatón. Los nombres, donaciones y ubicaciones de ejemplo son **simulados**. No usar como servicio de donaciones reales sin implementar autenticación, verificación de comedores, seguridad y protocolos de inocuidad alimentaria.
 
 ## Equipo (2 integrantes)
-- **Backend:** Anthony (carpeta `back/`).
-- **Frontend:** segundo integrante (carpeta `front/`).
+- **Integrante 1 — Backend:** Jesus Anthony Garamendi Gonzales (carpeta `back/`).
+- **Integrante 2 — Frontend:** Diego Manuel Pizango Chanchari (carpeta `front/`).
 
 ## Estructura
 ```text
