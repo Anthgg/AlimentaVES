@@ -20,7 +20,31 @@ Nuestro trabajo se relaciona con el **ODS 2 (Hambre Cero)** y el **ODS 12 (Produ
 3. Un comedor puede reservar una donación.
 4. Al confirmar la entrega, se actualizan las estadísticas.
 
-La demostración utiliza nombres y ubicaciones ficticias. Para poner la plataforma en funcionamiento con donaciones reales se necesitarían controles de seguridad alimentaria, verificación de participantes y protección de datos.
+Las donaciones de la demostración emplean información ficticia. El catálogo de comedores parte de registros oficiales públicos de Villa El Salvador; su aparición en el directorio **no acredita actividad operativa actual**. Para usar donaciones reales se requieren controles de seguridad alimentaria, verificación de participantes y protección de datos.
+
+## Vista previa de AlimentaVES Nature
+
+Diseño Nature: identidad verde bosque, componentes accesibles, navegación responsive, ilustraciones de alimentos y directorio cartográfico.
+
+<p align="center"><img src="front/public/alimentaves-logo.png" alt="Logotipo AlimentaVES" width="155"></p>
+
+| Caja solidaria | Verduras frescas | Canasta de frutas |
+|:---:|:---:|:---:|
+| <img src="front/public/assets/alimentos/caja-solidaria.png" alt="Ilustración de caja solidaria con alimentos" width="215"> | <img src="front/public/assets/alimentos/verduras-frescas.png" alt="Ilustración de verduras frescas" width="215"> | <img src="front/public/assets/alimentos/canasta-frutas.png" alt="Ilustración de canasta con frutas" width="215"> |
+
+| Olla comunitaria | Arroz | Menú preparado |
+|:---:|:---:|:---:|
+| <img src="front/public/assets/alimentos/olla-comunitaria.png" alt="Ilustración de olla comunitaria" width="215"> | <img src="front/public/assets/alimentos/arroz.png" alt="Ilustración de arroz" width="215"> | <img src="front/public/assets/alimentos/menu-preparado.png" alt="Ilustración de menú preparado" width="215"> |
+
+Las imágenes superiores son **ilustrativas**, no representan fotografías verificadas de donaciones o comedores. Procedencia y créditos: [inventario de recursos](front/public/assets/alimentos/ASSETS.md).
+
+**Capturas reales del frontend:**
+
+- [Landing escritorio 1366 × 768](https://drive.google.com/file/d/1D2kXZ1S_CvIABd7I7VZMBkFwB__SeCLe/view)
+- [Landing móvil 390 × 844](https://drive.google.com/file/d/1c5dS6A-fPoE2IsFJOzIYFemYguCASkDC/view)
+- [Landing escritorio 1920 × 1080](https://drive.google.com/file/d/11lmIKDNqsXIVZ-t2oGv7YRAx8a9NQSzH/view)
+- [Mapa de comedores](https://drive.google.com/file/d/1QZzfptwYTxk4bGl-2mTJvlv8Fa_l--e8/view)
+- [Todas las capturas responsive](https://drive.google.com/drive/folders/1G3Jr64bnQ4a7eegU7J-uZV-cV3YMojiV)
 
 ## Tecnologías
 
