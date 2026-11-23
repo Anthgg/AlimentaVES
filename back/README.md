@@ -21,6 +21,7 @@ back/
 │   ├── config.py
 │   ├── database.py
 │   ├── community_kitchen_schemas.py
+│   ├── community_kitchen_stats_schemas.py
 │   ├── import_community_kitchens.py
 │   ├── main.py
 │   ├── schemas.py
@@ -28,6 +29,7 @@ back/
 │   └── routes/
 │       ├── donations.py
 │       ├── community_kitchens.py
+│       ├── community_kitchen_stats.py
 │       └── stats.py
 ├── scripts/
 │   └── download_community_kitchens.ps1
@@ -64,6 +66,7 @@ Si necesitamos ejecutar Python directamente, podemos instalar las dependencias c
 | GET | /api/stats | Consultar estadísticas |
 | GET | /api/community-kitchens | Listar comedores públicos |
 | GET | /api/community-kitchens/{id} | Ver un comedor |
+| GET | /api/community-kitchens/stats | Consultar métricas de comedores |
 
 Los estados permitidos son `available`, `reserved` y `delivered`. El contrato detallado está en [API_CONTRACT.md](../docs/API_CONTRACT.md).
 

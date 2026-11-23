@@ -172,6 +172,42 @@ def get_stats() -> dict:
     }
 
 
+def get_community_kitchen_stats() -> dict:
+    """Return source-backed metrics for community kitchens in PostgreSQL."""
+    with connect() as conn:
+        totals = conn.execute("""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (
+                    WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                ) AS located,
+                COUNT(DISTINCT NULLIF(LOWER(BTRIM(district)), ''))
+                    AS district_count,
+                COUNT(users_count) AS records_with_reported_users,
+                COALESCE(SUM(users_count), 0) AS source_reported_users_total
+            FROM community_kitchens
+        """).fetchone()
+        statuses = conn.execute("""
+            SELECT
+                COALESCE(NULLIF(BTRIM(source_status), ''), 'unknown') AS status,
+                COUNT(*) AS count
+            FROM community_kitchens
+            GROUP BY 1
+            ORDER BY 1
+        """).fetchall()
+
+    return {
+        "total": totals["total"],
+        "located": totals["located"],
+        "district_count": totals["district_count"],
+        "status_breakdown": {
+            row["status"]: row["count"] for row in statuses
+        },
+        "records_with_reported_users": totals["records_with_reported_users"],
+        "source_reported_users_total": totals["source_reported_users_total"],
+    }
+
+
 def donation_count() -> int:
     with connect() as conn:
         return conn.execute(

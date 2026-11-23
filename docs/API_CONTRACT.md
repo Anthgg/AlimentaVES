@@ -13,6 +13,7 @@ Base URL local: `http://localhost:8000/api` · documentación interactiva: `http
 | GET | `/stats` | Resumen agregado |
 | GET | `/community-kitchens` | Listado paginado de comedores públicos |
 | GET | `/community-kitchens/{id}` | Comedor por identificador o 404 |
+| GET | `/community-kitchens/stats` | Métricas agregadas de comedores |
 
 ## Crear donación
 ```json
@@ -74,6 +75,8 @@ Datos solo de ejemplo. `estimated_servings` = parte entera de kg entregados / 0.
 - `offset`: filas que se omiten antes de la página (por defecto 0).
 
 `GET /community-kitchens/{id}` devuelve un registro o 404. La respuesta incluye el código y nombre publicados, distrito, UBIGEO, coordenadas WGS84, modalidad, estado informado por la fuente y cantidad agregada de usuarios cuando está disponible. `address` puede ser nulo: la fuente también contiene direcciones específicas que no se guardan por privacidad. `verified_at` queda nulo; `source_status` no acredita operación actual.
+
+`GET /community-kitchens/stats` resume `total`, registros con coordenadas (`located`), distritos, estados publicados y conteos de usuarios reportados por la fuente. `source_reported_users_total` suma esos valores; no representa personas únicas. Este endpoint separado conserva intacta la respuesta existente de `GET /stats`.
 
 ## Manejo de errores
 FastAPI usa `{"detail":"mensaje"}` y validaciones HTTP 422. Frontend no debe inventar otro formato. Modificaciones del contrato requieren coordinación de ambos integrantes.
