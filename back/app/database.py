@@ -34,6 +34,37 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS donations_status_idx ON donations(status)"
         )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS community_kitchens (
+                id BIGSERIAL PRIMARY KEY,
+                source_object_id BIGINT,
+                source_code VARCHAR(100) NOT NULL UNIQUE,
+                name VARCHAR(254) NOT NULL,
+                district VARCHAR(120) NOT NULL,
+                ubigeo CHAR(6) NOT NULL,
+                address TEXT,
+                latitude DOUBLE PRECISION,
+                longitude DOUBLE PRECISION,
+                modality VARCHAR(120),
+                source_status VARCHAR(120),
+                users_count INTEGER CHECK (users_count IS NULL OR users_count >= 0),
+                source_url TEXT NOT NULL,
+                downloaded_at TIMESTAMPTZ NOT NULL,
+                verified_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+                CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS community_kitchens_district_idx "
+            "ON community_kitchens(district)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS community_kitchens_name_idx "
+            "ON community_kitchens(name)"
+        )
 
 
 def _id(value: str) -> UUID | None:
@@ -146,3 +177,37 @@ def donation_count() -> int:
         return conn.execute(
             "SELECT COUNT(*) AS total FROM donations"
         ).fetchone()["total"]
+
+
+def list_community_kitchens(
+    name: str | None = None,
+    district: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    conditions = []
+    params: list[object] = []
+    if name:
+        conditions.append("name ILIKE %s")
+        params.append(f"%{name}%")
+    if district:
+        conditions.append("LOWER(district) = LOWER(%s)")
+        params.append(district)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.extend((limit, offset))
+    with connect() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM community_kitchens {where} "
+            "ORDER BY name, source_code LIMIT %s OFFSET %s",
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_community_kitchen(kitchen_id: int) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM community_kitchens WHERE id = %s", (kitchen_id,)
+        ).fetchone()
+    return dict(row) if row is not None else None

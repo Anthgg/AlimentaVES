@@ -24,3 +24,8 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Evidencias fuera del repositorio
+back/data/raw/
+back/docs/F[0-9][0-9].md
+*.log
