@@ -26,6 +26,8 @@ Navegador
 - `docker/postgres/init/`: creación de la base `alimentaves_test` para las pruebas.
 - `compose.yaml`: configuración conjunta de los tres servicios.
 
+La tabla `community_kitchens` conserva comedores publicados por IDEP para Villa El Salvador. La importación es idempotente y usa el código de la fuente; las solicitudes de la API leen desde PostgreSQL. La descarga conserva únicamente campos públicos permitidos y geometría WGS84.
+
 ## Modelo de donaciones
 
 La tabla `donations` guarda el identificador UUID, nombre del donante, alimento, cantidad en kilogramos, punto de entrega, vencimiento, notas, estado, comedor que reservó y fechas de creación y entrega.
