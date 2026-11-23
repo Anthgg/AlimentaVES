@@ -2,6 +2,14 @@
 
 **Responsable:** Diego Manuel Pizango Chanchari
 
+## 🌐 Versión pública
+
+**[Visitar AlimentaVES en producción (Google Cloud Run)](https://alimentaves-web-503214547617.us-east1.run.app/)**
+
+URL: https://alimentaves-web-503214547617.us-east1.run.app/
+
+La interfaz Nature está publicada en `us-east1`. La carga de la página principal fue comprobada el **23 de noviembre de 2026**. El funcionamiento integral de los endpoints de FastAPI sigue requiriendo validación independiente.
+
 Este módulo implementa la interfaz **AlimentaVES Nature**, integrada en la rama principal del proyecto, para explorar alimentos disponibles, consultar comedores populares y navegar por flujos de donación, vinculación y administración. Las operaciones dependen de la API FastAPI conectada.
 
 ## Capturas del frontend
@@ -28,9 +36,9 @@ Este módulo implementa la interfaz **AlimentaVES Nature**, integrada en la rama
 
 La base de datos es PostgreSQL. El frontend no se conecta directamente a ella; utiliza la API del backend.
 
-## Cómo ejecutarlo
+## Cómo ejecutarlo localmente
 
-Desde la raíz del repositorio:
+La versión pública se encuentra arriba. Para desarrollo local, desde la raíz del repositorio:
 
 ```bash
 docker compose up --build -d
@@ -111,7 +119,8 @@ La compilación correcta **no sustituye** las pruebas funcionales contra la API 
 - Las fotografías de comida son **ilustrativas**; ver [ASSETS.md](public/assets/alimentos/ASSETS.md).
 - Los registros de comedores proceden de datos públicos y **no certifican su funcionamiento actual**.
 - Algunas restricciones de autenticación y privacidad deben reforzarse en el backend antes de utilizar datos reales.
-- El proxy de Vite para `/api` solo cubre desarrollo. Un despliegue real requiere configurar explícitamente la conexión segura entre frontend y FastAPI.
+- El proxy de Vite para `/api` solo cubre desarrollo. La versión pública debe configurar explícitamente el enrutamiento hacia FastAPI.
+- Durante la comprobación de la URL pública, `/api/health` devolvió la página HTML de la aplicación y no el JSON de salud esperado. Validar el proxy/backend de producción antes de usar operaciones reales.
 
 ## Evidencias
 
