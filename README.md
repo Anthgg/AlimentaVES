@@ -2,6 +2,14 @@
 
 **HackODS UA 2026 · Villa El Salvador**
 
+## 🌐 Plataforma en producción
+
+### [Abrir AlimentaVES Nature en Google Cloud Run](https://alimentaves-web-503214547617.us-east1.run.app/)
+
+**URL pública:** [https://alimentaves-web-503214547617.us-east1.run.app/](https://alimentaves-web-503214547617.us-east1.run.app/)
+
+La interfaz web de AlimentaVES está desplegada y es accesible públicamente en **Google Cloud Run** (región `us-east1`). La disponibilidad de esta página se comprobó el **23 de noviembre de 2026**. Esto verifica la publicación del frontend, pero **no certifica por sí solo** todas las operaciones del backend, la autenticación ni la persistencia de las donaciones.
+
 AlimentaVES es una plataforma web que busca conectar donantes de alimentos con comedores populares. Con el proyecto queremos ayudar a aprovechar alimentos aptos para consumo que, de otro modo, podrían desperdiciarse.
 
 Nuestro trabajo se relaciona con el **ODS 2 (Hambre Cero)** y el **ODS 12 (Producción y Consumo Responsables)**.
@@ -12,7 +20,8 @@ Nuestro trabajo se relaciona con el **ODS 2 (Hambre Cero)** y el **ODS 12 (Produ
 - **Ámbito:** Villa El Salvador, Lima, Perú.
 - **Interfaz:** rediseño Nature integrado en la rama `main`.
 - **API:** FastAPI, con desarrollo adicional de backend en curso fuera de `main`.
-- **Demostración:** se ejecuta en entorno local o entorno de pruebas; no se documenta aquí una URL de producción pública verificada.
+- **Versión pública:** frontend Nature publicado en [Google Cloud Run](https://alimentaves-web-503214547617.us-east1.run.app/).
+- **API en producción:** integración y permisos de endpoints pendientes de validación funcional completa.
 - **Datos:** el directorio ha sido probado con 242 registros oficiales de comedores de Villa El Salvador.
 
 El objetivo es facilitar la conexión entre donantes y comedores y reducir el desperdicio de alimentos aptos para consumo. **No se presentan cifras de prueba como impacto social real**.
@@ -35,7 +44,7 @@ Las donaciones de la demostración emplean información ficticia. El catálogo d
 
 ## Galería del prototipo Nature
 
-Capturas **reales de la interfaz** tomadas durante las pruebas del rediseño Nature. Estas imágenes muestran el prototipo, **no un despliegue público confirmado**.
+Capturas **reales de la interfaz** tomadas durante las pruebas del rediseño Nature. Las capturas documentan el diseño del prototipo y pueden diferir ligeramente de la [versión actualmente publicada](https://alimentaves-web-503214547617.us-east1.run.app/).
 
 <p align="center">
   <img src="front/public/alimentaves-logo.png" width="128" alt="Logotipo de AlimentaVES">
@@ -117,6 +126,7 @@ El mapa utiliza [Leaflet](https://leafletjs.com/) y datos públicos geográficos
 - **Frontend:** React, TypeScript y Vite.
 - **Backend:** Python, FastAPI y Pydantic.
 - **Base de datos:** PostgreSQL 16.
+- **Despliegue web:** Google Cloud Run (`us-east1`).
 - **Entorno de desarrollo:** Docker Compose.
 
 ## Organización del repositorio
@@ -145,7 +155,8 @@ Direcciones del proyecto:
 
 | Servicio | Dirección |
 | --- | --- |
-| Aplicación web | http://localhost:5173 |
+| **Aplicación pública (Cloud Run)** | **[https://alimentaves-web-503214547617.us-east1.run.app/](https://alimentaves-web-503214547617.us-east1.run.app/)** |
+| Aplicación web local | http://localhost:5173 |
 | Documentación de API | http://localhost:8000/docs |
 | Estado de API | http://localhost:8000/api/health |
 | PostgreSQL | localhost:5433 |
@@ -163,6 +174,12 @@ docker compose down
 ```
 
 La información de PostgreSQL se conserva en un volumen Docker. El comando `docker compose down -v` elimina los volúmenes y no debe utilizarse para detener el trabajo diario.
+
+## Estado de la comprobación pública
+
+- **Confirmado:** la URL pública carga el inicio de AlimentaVES Nature.
+- **Por comprobar de extremo a extremo:** registro, inicio de sesión, publicación, reserva, entrega y escritura en la base de datos desplegada.
+- **Observación técnica:** durante la comprobación, la ruta pública `/api/health` devolvió HTML de la aplicación en lugar de una respuesta de estado JSON de FastAPI. Revisar el enrutamiento/proxy de `/api` y su configuración en producción antes de declarar funcional la integración.
 
 ## Desarrollo
 
