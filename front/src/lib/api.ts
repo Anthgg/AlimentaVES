@@ -1,6 +1,12 @@
-import type { CreateDonation, Donation, DonationStatus, Stats } from '../types'
+import type {
+  CommunityKitchen,
+  CreateDonation,
+  Donation,
+  DonationStatus,
+  Stats,
+} from '../types'
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const API = import.meta.env.VITE_API_URL || '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(API + path, {
@@ -30,4 +36,5 @@ export const api = {
   deliver: (id: string) =>
     request<Donation>('/donations/' + encodeURIComponent(id) + '/deliver', { method: 'PATCH' }),
   stats: () => request<Stats>('/stats'),
+  listCommunityKitchens: () => request<CommunityKitchen[]>('/community-kitchens?limit=100'),
 }

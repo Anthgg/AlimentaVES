@@ -26,3 +26,22 @@ export interface Stats {
   kilograms_delivered: number
   estimated_servings: number
 }
+
+export interface CommunityKitchen {
+  id: number
+  source_code: string
+  name: string
+  district: string
+  ubigeo: string
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+  modality: string | null
+  source_status: string | null
+  users_count: number | null
+  source_url: string
+  downloaded_at: string
+  verified_at: string | null
+  created_at: string
+  updated_at: string
+}
