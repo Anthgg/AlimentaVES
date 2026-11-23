@@ -3,15 +3,16 @@ from __future__ import annotations
 
 import warnings
 from io import BytesIO
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Path as ApiPath, Query, UploadFile, status
 from fastapi.responses import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
+from starlette.concurrency import run_in_threadpool
 
 from .. import database as db
 from .. import community_kitchen_media_db as media_db
+from .. import media_storage
 from ..auth import AuthenticatedUser, get_current_user
 from ..community_kitchen_media_schemas import (
     PhotoCategory,
@@ -122,13 +123,10 @@ async def upload_photo(
     )
     photo_id = uuid4()
     relative_path = f"{photo_id.hex}{extension}"
-    root = media_db.media_root()
-    root.mkdir(parents=True, exist_ok=True)
-    target = root / relative_path
-    temporary = root / f".{photo_id.hex}.tmp"
     try:
-        temporary.write_bytes(payload)
-        temporary.replace(target)
+        await run_in_threadpool(
+            media_storage.save, relative_path, payload, content_type
+        )
         row = media_db.create_photo({
             "id": photo_id,
             "kitchen_id": kitchen_id,
@@ -142,8 +140,10 @@ async def upload_photo(
             "uploaded_by": current_user.id,
         })
     except Exception:
-        target.unlink(missing_ok=True)
-        temporary.unlink(missing_ok=True)
+        try:
+            await run_in_threadpool(media_storage.delete, relative_path)
+        except Exception:
+            pass
         raise
     return _public_view(row)
 
@@ -168,12 +168,11 @@ def _serve_photo(photo_id: UUID, *, public_only: bool) -> Response:
     row = media_db.get_photo(photo_id, public_only=public_only)
     if row is None:
         raise HTTPException(404, "Fotografía no encontrada")
-    root = media_db.media_root()
-    path = (root / row["file_path"]).resolve()
-    if path.parent != root or not path.is_file():
+    payload = media_storage.read(row["file_path"])
+    if payload is None:
         raise HTTPException(404, "Fotografía no encontrada")
     return Response(
-        path.read_bytes(),
+        payload,
         media_type=row["content_type"],
         headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff"},
     )
@@ -206,11 +205,11 @@ def get_photo_for_moderation(
     row = media_db.get_photo(photo_id)
     if row is None:
         raise HTTPException(404, "Fotografía no encontrada")
-    path = (media_db.media_root() / row["file_path"]).resolve()
-    if path.parent != media_db.media_root() or not path.is_file():
+    payload = media_storage.read(row["file_path"])
+    if payload is None:
         raise HTTPException(404, "Fotografía no encontrada")
     return Response(
-        path.read_bytes(),
+        payload,
         media_type=row["content_type"],
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
     )

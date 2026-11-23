@@ -5,14 +5,7 @@ import os
 from pathlib import Path
 from uuid import UUID
 
-import psycopg
-from psycopg.rows import dict_row
-
-from .config import database_url
-
-
-def connect() -> psycopg.Connection:
-    return psycopg.connect(database_url(), row_factory=dict_row)
+from .database import connect
 
 
 def media_root() -> Path:

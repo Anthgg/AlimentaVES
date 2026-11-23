@@ -1,8 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .config import cors_origins, demo_seed_enabled
-from .database import init_db
+from .config import (
+    auto_create_schema,
+    cors_origins,
+    demo_seed_enabled,
+    validate_runtime_settings,
+)
+from . import database as db
 from .community_kitchen_media_db import init_media_db
 from .donation_requests import init_requests_db
 from .notifications import init_notifications_db, router as notifications_router
@@ -21,13 +26,21 @@ from .seed import seed_demo_if_empty
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    init_notifications_db()
-    init_requests_db()
-    init_media_db()
-    if demo_seed_enabled():
-        seed_demo_if_empty()
-    yield
+    try:
+        validate_runtime_settings()
+        if auto_create_schema():
+            db.init_db()
+            init_notifications_db()
+            init_requests_db()
+            init_media_db()
+        else:
+            with db.connect() as conn:
+                conn.execute("SELECT 1")
+        if demo_seed_enabled():
+            seed_demo_if_empty()
+        yield
+    finally:
+        db.close_pool()
 
 app = FastAPI(
     title="AlimentaVES API",
