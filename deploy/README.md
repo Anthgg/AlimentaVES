@@ -8,6 +8,7 @@ La configuración conserva los endpoints FastAPI y la autenticación JWT actual.
 - Región: `us-east1`, cercana a Supabase `us-east-1`
 - Servicio: `alimentaves-api`
 - Bucket privado: `alimentaves-demo-2026-anthg-media`
+- Frontend público: `alimentaves-web`
 
 ## Preparación de secretos
 
@@ -35,19 +36,21 @@ Cuando el proyecto tenga facturación habilitada y existan ambos secretos con la
 
 El servicio escala de cero a un máximo de dos instancias, con 1 vCPU, 1 GiB, concurrencia 20 y un pool de hasta cuatro conexiones por instancia (ocho conexiones como máximo). El endpoint de health es `/api/health`.
 
-`deploy/cloudrun.env.yaml` restringe CORS a los orígenes locales de Vite para la demostración actual. Si React se publica en otro dominio, reemplazar esos orígenes por el dominio exacto autorizado antes de desplegar. No se ha cambiado `front/`.
+`deploy/cloudrun.env.yaml` mantiene CORS limitado a orígenes explícitos. Para publicar React desde una versión o worktree concreto, ejecutar `./deploy/deploy-frontend.ps1 -FrontendPath "C:\ruta\al\worktree\front"`: copia el contenido actual de esa carpeta, excluye secretos locales y dependencias, construye una imagen estática con Nginx sin editar el frontend y fija `VITE_API_URL` a la URL HTTPS del API. El script agrega el origen del sitio a CORS solo si aún no está autorizado. El servicio público `alimentaves-web` usa 1 vCPU, 512 MiB, concurrencia 80 y escala de cero a dos instancias.
 
 ## Despliegue verificado
 
 - Cloud Run: `https://alimentaves-api-qdaiunhqva-ue.a.run.app`
-- Revisión activa: `alimentaves-api-00001-6cj`
+- Frontend: `https://alimentaves-web-qdaiunhqva-ue.a.run.app`
+- Revisión del backend: `alimentaves-api-00003-c52`, basada en F12 `b774b6c` y los cambios de producción de esta rama.
+- Revisión del frontend: `alimentaves-web-00002-mns`, construida desde `codex/alimentaves-visual-map-fixes` (`19e361e`) con los cambios locales de frontend presentes al desplegar.
 - Health y consultas de comedores, filtros, estadísticas y donaciones comprobados desde la URL pública.
 - Suite de backend: 28 pruebas pasan en un contenedor PostgreSQL aislado; el contenedor temporal ya se eliminó.
-- El usuario de prueba no existía; el login devolvió `401` y no creó datos.
-- CORS comprobado para `http://localhost:5173`, origen de Vite en el repositorio.
+- CORS comprobado para el frontend publicado; los orígenes externos de prueba se rechazan.
+- Frontend Cloud Run servido por HTTPS; el bundle apunta al API Cloud Run y el preflight CORS admite el frontend publicado.
 - El bucket tiene acceso uniforme y prevención de acceso público; no se migraron fotografías locales.
 - La búsqueda en 48 entradas recientes de Cloud Run no encontró URI PostgreSQL, verificador SCRAM, `JWT_SECRET` ni asignaciones `password=`.
 
 El servicio usa 1 vCPU, 1 GiB, concurrencia 20, timeout de 60 segundos, escalamiento de cero a dos instancias y hasta cuatro conexiones PostgreSQL por instancia. No se calculó una factura real: Cloud Run escala a cero, mientras que Cloud Build, Artifact Registry, GCS y Supabase pueden generar cargos según uso y plan.
 
-Las pruebas de escritura corrieron solo contra el contenedor PostgreSQL aislado. No se crearon usuarios, donaciones, reservas, solicitudes, notificaciones ni fotografías en la base de demostración. React mantiene su contrato; para llamar al backend, el build local usa `VITE_API_URL=https://alimentaves-api-qdaiunhqva-ue.a.run.app/api` sin cambios en `front/`.
+Las pruebas de escritura de la suite corrieron solo contra el contenedor PostgreSQL aislado. En una verificación posterior, `GET /api/donations` devolvió dos registros; el despliegue y sus verificaciones solo hicieron solicitudes de lectura/preflight y no los modificaron. React mantiene su contrato; el bundle publicado usa `VITE_API_URL=https://alimentaves-api-qdaiunhqva-ue.a.run.app/api` sin cambiar archivos de `front/`.
