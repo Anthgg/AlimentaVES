@@ -79,6 +79,9 @@ Si necesitamos ejecutar Python directamente, podemos instalar las dependencias c
 | PATCH | /api/admin/community-kitchen-claims/{id}/decision | Aprobar o rechazar solicitud (admin) |
 | GET | /api/admin/community-kitchen-profiles | Listar perfiles para revisión (admin) |
 | PATCH | /api/admin/community-kitchen-profiles/{id}/decision | Publicar o rechazar perfil (admin) |
+| GET | /api/admin/users | Listar cuentas sin hashes (admin) |
+| GET | /api/admin/community-kitchens | Consultar catálogo de comedores (admin) |
+| GET | /api/admin/donations | Consultar donaciones (admin) |
 | POST | /api/auth/register | Crear una cuenta donante |
 | POST | /api/auth/login | Iniciar sesión y recibir un token Bearer |
 | POST | /api/auth/logout | Revocar el token actual |
@@ -114,6 +117,8 @@ RETURNING id, email, role;
 La lista de comedores admite `name`, `district`, `limit` y `offset`. Los datos importados provienen de la capa pública de comedores del IDEP. La importación conserva el código publicado como identificador estable y actualiza los registros existentes sin borrar filas. Se excluyen los nombres de responsables y las direcciones específicas de la fuente. El estado se presenta tal como lo publica la fuente; no confirma que el comedor opere actualmente.
 
 Los comedores pueden solicitar que una cuenta autenticada administre su perfil. La identidad se toma del token, nunca de un `account_id` enviado en el cuerpo. El claim no admite texto libre. Solo un administrador aprueba o rechaza claims después de verificar la representación; aprobar crea una membresía `kitchen` activa. Los miembros aprobados pueden enviar versiones de descripción, horarios, ubicación institucional y necesidades. No se deben incluir nombres ni contactos de responsables, ni datos que permitan identificar beneficiarios. La validación rechaza patrones evidentes de correo, teléfono peruano y DNI etiquetado de ocho dígitos; no intenta detectar nombres. El administrador debe revisar cada versión y rechazar información identificable. Mientras se revisa una actualización, la última versión aprobada sigue visible. Los datos de perfil se almacenan por separado de los campos importados del IDEP.
+
+Los endpoints `/api/admin/users`, `/api/admin/community-kitchens` y `/api/admin/donations` requieren rol `admin`; las respuestas de usuarios omiten hashes de contraseña.
 
 Para volver a descargar e importar la fuente desde PowerShell, en la raíz del repositorio:
 
