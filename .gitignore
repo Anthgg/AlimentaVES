@@ -15,6 +15,15 @@ venv/
 *.db-wal
 *.sqlite
 *.sqlite3
+# Reports, source downloads, logs, and test results are archived as evidence.
+back/docs/F*.md
+back/data/raw/*.json
+back/logs/
+back/evidence/
+logs/
+evidence/
+*.log
+postman/results/
 # Node
 node_modules/
 dist/
