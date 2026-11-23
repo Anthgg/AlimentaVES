@@ -1,0 +1,596 @@
+{
+  "info": {
+    "_postman_id": "c8461f07-1f09-4be4-a3b9-8ad2d7a2cafd",
+    "name": "AlimentaVES API",
+    "description": "Colección para validar la API local de AlimentaVES. Las solicitudes Create, Reserve y Deliver cambian la base de datos. Úsalas solo en un entorno de prueba; los datos de ejemplo son ficticios.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "donationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "kitchenId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "reservedBy",
+      "value": "Comedor de demostración",
+      "type": "string"
+    },
+    {
+      "key": "expiresAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "runTag",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Sistema",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('API responde estado ok', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estadísticas de donaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/stats"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var data = pm.response.json();",
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Incluye métricas del contrato v1', function () {",
+                  "  ['available', 'reserved', 'delivered', 'kilograms_delivered', 'estimated_servings'].forEach(function (key) { pm.expect(data).to.have.property(key); });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Donaciones",
+      "item": [
+        {
+          "name": "Listar donaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('La respuesta es una lista', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar donaciones disponibles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations?status=available"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Todos los resultados están disponibles', function () { pm.response.json().forEach(function (row) { pm.expect(row.status).to.eql('available'); }); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear donación de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"donor_name\": \"Donante de prueba Postman {{runTag}}\",\n  \"food_name\": \"Arroz sellado de prueba\",\n  \"quantity_kg\": 3.5,\n  \"pickup_address\": \"Punto de demostración, Villa El Salvador\",\n  \"expires_at\": \"{{expiresAt}}\",\n  \"notes\": \"Registro ficticio de validación {{runTag}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/donations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "var data = pm.response.json();",
+                  "pm.test('Se creó como available con UUID', function () { pm.expect(data.status).to.eql('available'); pm.expect(data.id).to.match(/^[0-9a-f-]{36}$/i); });",
+                  "pm.test('Donante de prueba con identificador único de ejecución', function () { pm.expect(data.donor_name).to.include(pm.collectionVariables.get('runTag')); });",
+                  "pm.collectionVariables.set('donationId', data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar donación creada",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations/{{donationId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Coincide con el identificador creado', function () { pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('donationId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reservar donación creada",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reserved_by\": \"{{reservedBy}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/donations/{{donationId}}/reserve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Estado reserved', function () { pm.expect(pm.response.json().status).to.eql('reserved'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reserva duplicada (espera 409)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reserved_by\": \"Otro comedor ficticio\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/donations/{{donationId}}/reserve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409 al reservar por segunda vez', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirmar entrega",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations/{{donationId}}/deliver"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Estado delivered', function () { pm.expect(pm.response.json().status).to.eql('delivered'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrega duplicada (espera 409)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations/{{donationId}}/deliver"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409 al entregar dos veces', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Validaciones de donaciones",
+      "item": [
+        {
+          "name": "Cantidad inválida (espera 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"donor_name\": \"Donante ficticio\",\n  \"food_name\": \"Arroz de prueba\",\n  \"quantity_kg\": 0,\n  \"pickup_address\": \"Punto de prueba, VES\",\n  \"expires_at\": \"{{expiresAt}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/donations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422 por cantidad no positiva', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UUID mal formado (espera 422)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations/no-es-uuid"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422 por UUID mal formado', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UUID válido inexistente (espera 404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/donations/00000000-0000-0000-0000-000000000001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404 por donación inexistente', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Comedores populares",
+      "item": [
+        {
+          "name": "Estadísticas de comedores populares",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/community-kitchens/stats"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var data = pm.response.json();",
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Tiene las métricas de comedores definidas por la API', function () {",
+                  "  ['total', 'located', 'district_count', 'status_breakdown', 'records_with_reported_users', 'source_reported_users_total'].forEach(function (key) { pm.expect(data).to.have.property(key); });",
+                  "});",
+                  "pm.test('Los conteos son no negativos y consistentes', function () {",
+                  "  ['total', 'located', 'district_count', 'records_with_reported_users', 'source_reported_users_total'].forEach(function (key) { pm.expect(data[key]).to.be.a('number'); pm.expect(data[key]).to.be.at.least(0); });",
+                  "  pm.expect(data.located).to.be.at.most(data.total);",
+                  "  pm.expect(data.records_with_reported_users).to.be.at.most(data.total);",
+                  "  pm.expect(data.status_breakdown).to.be.an('object');",
+                  "  var statusTotal = Object.values(data.status_breakdown).reduce(function (sum, count) { pm.expect(count).to.be.a('number'); pm.expect(count).to.be.at.least(0); return sum + count; }, 0);",
+                  "  pm.expect(statusTotal).to.eql(data.total);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar comedores con paginación",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/community-kitchens?limit=10&offset=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var rows = pm.response.json();",
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Lista paginada de hasta 10 filas', function () { pm.expect(rows).to.be.an('array'); pm.expect(rows.length).to.be.at.most(10); });",
+                  "if (rows.length > 0) pm.collectionVariables.set('kitchenId', String(rows[0].id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar por nombre y distrito",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/community-kitchens?name=SAN%20MARTIN&district=VILLA%20EL%20SALVADOR&limit=5&offset=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Los resultados cumplen los filtros', function () { pm.response.json().forEach(function (row) { pm.expect(row.name.toLowerCase()).to.include('san martin'); pm.expect(row.district.toLowerCase()).to.eql('villa el salvador'); }); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar comedor seleccionado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/community-kitchens/{{kitchenId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 si hay comedores importados, o 404 si la base está vacía', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) pm.test('Incluye código estable y URL de origen', function () { var data = pm.response.json(); pm.expect(data.source_code).to.be.a('string'); pm.expect(data.source_code.length).to.be.above(0); pm.expect(data.source_url).to.match(/^https?:\\/\\/.+/i); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Id de comedor inválido (espera 422)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/community-kitchens/no-es-numero"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422 por id inválido', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "if (pm.info.requestName === 'Health') {",
+          "  var suppliedTag = pm.environment.get('runTag');",
+          "  var runTag = suppliedTag && suppliedTag.trim() ? suppliedTag.trim() : pm.variables.replaceIn('{{}}').replace(/-/g, '');",
+          "  pm.collectionVariables.set('runTag', runTag);",
+          "  var suppliedExpiry = pm.environment.get('expiresAt');",
+          "  var expiresAt = suppliedExpiry && suppliedExpiry.trim() ? suppliedExpiry.trim() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();",
+          "  pm.collectionVariables.set('expiresAt', expiresAt);",
+          "}"
+        ],
+        "type": "text/javascript"
+      },
+      "disabled": false
+    }
+  ]
+}
