@@ -47,7 +47,9 @@ El comando `docker compose down -v` borra los volúmenes y, por tanto, también 
 
 Se puede ejecutar FastAPI desde la laptop usando `back/.env.example` como plantilla de variables de entorno. Para conectarlo a PostgreSQL de Docker se utiliza `localhost:5433`. El archivo `.env` no se publica en GitHub.
 
-La contraseña incluida en Compose es exclusivamente para desarrollo local. El proyecto no debe publicarse con esa configuración ni con la API sin autenticación.
+`JWT_SECRET` es opcional para la demostración: cuando no se define, cada proceso genera una clave aleatoria y los tokens dejan de servir al reiniciar FastAPI. Para conservar sesiones entre reinicios, varios workers o un entorno real, define `JWT_SECRET` con una clave aleatoria de al menos 32 bytes. Compose la lee del entorno o de un `.env` en la raíz del repositorio; nunca la escribas en `compose.yaml`. `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` configura la vigencia del token (60 minutos por defecto).
+
+La contraseña de PostgreSQL incluida en Compose es exclusivamente para desarrollo local. El API incorpora registro e inicio de sesión, pero las operaciones de donación aún no exigen token ni autorización por rol. No publiques el prototipo con datos reales ni sin completar esa integración y configurar transporte seguro.
 
 ## Importante al actualizar desde una versión anterior
 

@@ -14,6 +14,33 @@ Base URL local: `http://localhost:8000/api` · documentación interactiva: `http
 | GET | `/community-kitchens` | Listado paginado de comedores públicos |
 | GET | `/community-kitchens/{id}` | Comedor por identificador o 404 |
 | GET | `/community-kitchens/stats` | Métricas agregadas de comedores |
+| POST | `/auth/register` | Crear cuenta con rol `donor`, 201 |
+| POST | `/auth/login` | Iniciar sesión y recibir JWT Bearer |
+| POST | `/auth/logout` | Revocar token Bearer actual, 204 |
+| GET | `/auth/me` | Consultar usuario autenticado |
+
+## Autenticación
+
+Registro y acceso reciben JSON con correo y contraseña:
+```json
+{
+  "email": "donante@example.org",
+  "password": "Contraseña segura de prueba"
+}
+```
+La contraseña debe tener entre 12 y 128 caracteres. Los correos se normalizan a minúsculas. El registro crea únicamente el rol `donor`; un campo `role` u otro atributo adicional se rechaza con 422. Los roles persistidos son `donor`, `kitchen` y `admin`; no existe una ruta pública para asignar roles.
+
+`POST /auth/register` devuelve 201 con `id`, `email`, `role` y `created_at`. Un correo ya registrado devuelve 409. `POST /auth/login` devuelve:
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+Envía el token como `Authorization: Bearer <access_token>`. `/auth/me` requiere un token válido y devuelve la identidad y el rol actuales. `/auth/logout` requiere el token actual, responde 204 y lo revoca en PostgreSQL. Un token ausente, inválido, vencido o revocado devuelve 401.
+
+Este alcance agrega registro, inicio y cierre de sesión, pero conserva el comportamiento actual de las rutas de donaciones: todavía no requieren autenticación ni aplican autorización por rol. La integración de permisos con el frontend se coordinará aparte.
 
 ## Crear donación
 ```json

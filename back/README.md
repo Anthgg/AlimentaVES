@@ -20,6 +20,8 @@ back/
 ├── app/
 │   ├── config.py
 │   ├── database.py
+│   ├── auth.py
+│   ├── auth_schemas.py
 │   ├── community_kitchen_schemas.py
 │   ├── community_kitchen_stats_schemas.py
 │   ├── import_community_kitchens.py
@@ -27,6 +29,7 @@ back/
 │   ├── schemas.py
 │   ├── seed.py
 │   └── routes/
+│       ├── auth.py
 │       ├── donations.py
 │       ├── community_kitchens.py
 │       ├── community_kitchen_stats.py
@@ -67,8 +70,22 @@ Si necesitamos ejecutar Python directamente, podemos instalar las dependencias c
 | GET | /api/community-kitchens | Listar comedores públicos |
 | GET | /api/community-kitchens/{id} | Ver un comedor |
 | GET | /api/community-kitchens/stats | Consultar métricas de comedores |
+| POST | /api/auth/register | Crear una cuenta donante |
+| POST | /api/auth/login | Iniciar sesión y recibir un token Bearer |
+| POST | /api/auth/logout | Revocar el token actual |
+| GET | /api/auth/me | Consultar la cuenta autenticada |
 
 Los estados permitidos son `available`, `reserved` y `delivered`. El contrato detallado está en [API_CONTRACT.md](../docs/API_CONTRACT.md).
+
+## Autenticación
+
+El registro acepta correo y contraseña de 12 a 128 caracteres y siempre crea el rol `donor`. Enviar un campo `role` se rechaza; no hay una ruta pública para asignar los roles `kitchen` o `admin`. Las contraseñas se guardan como hashes Argon2id. El acceso devuelve un JWT Bearer firmado con HS256, con vencimiento configurable.
+
+Envía el token en `Authorization: Bearer <token>` para consultar `/api/auth/me` o cerrar sesión. El cierre de sesión registra el identificador del token en PostgreSQL y lo invalida antes de su vencimiento.
+
+La autenticación introduce cuentas y sesiones; conserva sin cambios el flujo actual de donaciones. Las rutas de donaciones todavía no exigen sesión ni aplican permisos por rol. El frontend actual no envía tokens, así que cualquier integración de permisos en esas rutas requiere coordinar después el cliente.
+
+`JWT_SECRET` no es obligatorio para una demostración local: si falta, cada proceso genera una clave aleatoria y sus sesiones dejan de ser válidas al reiniciarse. Para mantener sesiones estables, Docker multi-worker o un entorno real, define `JWT_SECRET` con un valor aleatorio de al menos 32 bytes. Para Compose, define la variable en el entorno o en un `.env` en la raíz del repositorio; ese archivo está excluido de Git. `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` configura la vigencia (por defecto, 60 minutos).
 
 La lista de comedores admite `name`, `district`, `limit` y `offset`. Los datos importados provienen de la capa pública de comedores del IDEP. La importación conserva el código publicado como identificador estable y actualiza los registros existentes sin borrar filas. Se excluyen los nombres de responsables y las direcciones específicas de la fuente. El estado se presenta tal como lo publica la fuente; no confirma que el comedor opere actualmente.
 

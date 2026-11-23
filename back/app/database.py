@@ -16,6 +16,29 @@ def connect() -> psycopg.Connection:
 def init_db() -> None:
     with connect() as conn:
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_users (
+                id UUID PRIMARY KEY,
+                email VARCHAR(254) NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(16) NOT NULL DEFAULT 'donor'
+                    CHECK (role IN ('donor', 'kitchen', 'admin')),
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_revoked_tokens (
+                jti UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+                expires_at TIMESTAMPTZ NOT NULL,
+                revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS auth_revoked_tokens_expires_idx "
+            "ON auth_revoked_tokens(expires_at)"
+        )
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS donations (
                 id UUID PRIMARY KEY,
                 donor_name VARCHAR(100) NOT NULL,
@@ -170,6 +193,55 @@ def get_stats() -> dict:
         "kilograms_delivered": kg,
         "estimated_servings": int((kg + 1e-9) / 0.35),
     }
+
+
+def create_donor_user(email: str, password_hash: str) -> dict | None:
+    """Create a donor account; the public caller cannot choose its role."""
+    with connect() as conn:
+        row = conn.execute("""
+            INSERT INTO auth_users (id, email, password_hash, role)
+            VALUES (%s, %s, %s, 'donor')
+            ON CONFLICT (email) DO NOTHING
+            RETURNING id, email, role, is_active, created_at
+        """, (uuid4(), email, password_hash)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def get_auth_user_by_email(email: str) -> dict | None:
+    """Return a user and hash for credential verification."""
+    with connect() as conn:
+        row = conn.execute("""
+            SELECT id, email, password_hash, role, is_active, created_at
+            FROM auth_users
+            WHERE email = %s
+        """, (email,)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def get_active_auth_user(user_id: UUID, token_jti: UUID) -> dict | None:
+    """Resolve an active user only when the presented token is not revoked."""
+    with connect() as conn:
+        row = conn.execute("""
+            SELECT u.id, u.email, u.role, u.is_active, u.created_at
+            FROM auth_users AS u
+            WHERE u.id = %s
+                AND u.is_active
+                AND NOT EXISTS (
+                    SELECT 1 FROM auth_revoked_tokens AS revoked
+                    WHERE revoked.jti = %s
+                )
+        """, (user_id, token_jti)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def revoke_auth_token(user_id: UUID, token_jti: UUID, expires_at: datetime) -> None:
+    """Persist a token revocation until its original expiration time."""
+    with connect() as conn:
+        conn.execute("""
+            INSERT INTO auth_revoked_tokens (jti, user_id, expires_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (jti) DO NOTHING
+        """, (token_jti, user_id, expires_at))
 
 
 def get_community_kitchen_stats() -> dict:
