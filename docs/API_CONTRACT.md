@@ -11,6 +11,8 @@ Base URL local: `http://localhost:8000/api` · documentación interactiva: `http
 | PATCH | `/donations/{id}/reserve` | Reserva, 200 o 409 |
 | PATCH | `/donations/{id}/deliver` | Confirmar entrega, 200 o 409 |
 | GET | `/stats` | Resumen agregado |
+| GET | `/community-kitchens` | Listado paginado de comedores públicos |
+| GET | `/community-kitchens/{id}` | Comedor por identificador o 404 |
 
 ## Crear donación
 ```json
@@ -61,6 +63,17 @@ Solo desde `available`, no vencida. PATCH `/donations/{id}/deliver` no requiere 
 }
 ```
 Datos solo de ejemplo. `estimated_servings` = parte entera de kg entregados / 0.35; **no** es una medición real de personas beneficiadas.
+
+## Comedores populares
+
+`GET /community-kitchens` consulta PostgreSQL y acepta:
+
+- `name`: búsqueda parcial, sin distinguir mayúsculas y minúsculas.
+- `district`: coincidencia exacta del distrito, sin distinguir mayúsculas y minúsculas.
+- `limit`: cantidad por página, de 1 a 500 (por defecto 100).
+- `offset`: filas que se omiten antes de la página (por defecto 0).
+
+`GET /community-kitchens/{id}` devuelve un registro o 404. La respuesta incluye el código y nombre publicados, distrito, UBIGEO, coordenadas WGS84, modalidad, estado informado por la fuente y cantidad agregada de usuarios cuando está disponible. `address` puede ser nulo: la fuente también contiene direcciones específicas que no se guardan por privacidad. `verified_at` queda nulo; `source_status` no acredita operación actual.
 
 ## Manejo de errores
 FastAPI usa `{"detail":"mensaje"}` y validaciones HTTP 422. Frontend no debe inventar otro formato. Modificaciones del contrato requieren coordinación de ambos integrantes.

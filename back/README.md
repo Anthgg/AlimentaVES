@@ -20,12 +20,18 @@ back/
 ├── app/
 │   ├── config.py
 │   ├── database.py
+│   ├── community_kitchen_schemas.py
+│   ├── import_community_kitchens.py
 │   ├── main.py
 │   ├── schemas.py
 │   ├── seed.py
 │   └── routes/
 │       ├── donations.py
+│       ├── community_kitchens.py
 │       └── stats.py
+├── scripts/
+│   └── download_community_kitchens.ps1
+├── data/raw/              Descargas saneadas de fuentes públicas
 ├── tests/
 ├── Dockerfile
 ├── requirements.txt
@@ -56,8 +62,21 @@ Si necesitamos ejecutar Python directamente, podemos instalar las dependencias c
 | PATCH | /api/donations/{id}/reserve | Reservar una donación |
 | PATCH | /api/donations/{id}/deliver | Confirmar una entrega |
 | GET | /api/stats | Consultar estadísticas |
+| GET | /api/community-kitchens | Listar comedores públicos |
+| GET | /api/community-kitchens/{id} | Ver un comedor |
 
 Los estados permitidos son `available`, `reserved` y `delivered`. El contrato detallado está en [API_CONTRACT.md](../docs/API_CONTRACT.md).
+
+La lista de comedores admite `name`, `district`, `limit` y `offset`. Los datos importados provienen de la capa pública de comedores del IDEP. La importación conserva el código publicado como identificador estable y actualiza los registros existentes sin borrar filas. Se excluyen los nombres de responsables y las direcciones específicas de la fuente. El estado se presenta tal como lo publica la fuente; no confirma que el comedor opere actualmente.
+
+Para volver a descargar e importar la fuente desde PowerShell, en la raíz del repositorio:
+
+```powershell
+.\back\scripts\download_community_kitchens.ps1
+docker compose exec back python -m app.import_community_kitchens
+```
+
+El archivo descargado contiene solo una lista permitida de campos y geometrías en WGS84. El importador selecciona Villa El Salvador con UBIGEO `150142` y distrito `VILLA EL SALVADOR`.
 
 ## Pruebas
 

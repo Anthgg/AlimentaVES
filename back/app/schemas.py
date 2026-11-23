@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class DonationStatus(str, Enum):
     available = "available"
@@ -8,9 +10,11 @@ class DonationStatus(str, Enum):
     delivered = "delivered"
 
 class DonationCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     donor_name: str = Field(min_length=2, max_length=100)
     food_name: str = Field(min_length=2, max_length=120)
-    quantity_kg: float = Field(gt=0, le=10000)
+    quantity_kg: float = Field(gt=0, le=10000, allow_inf_nan=False)
     pickup_address: str = Field(min_length=4, max_length=200)
     expires_at: datetime
     notes: str | None = Field(default=None, max_length=500)
@@ -25,7 +29,7 @@ class DonationCreate(BaseModel):
         return value
 
 class DonationOut(BaseModel):
-    id: str
+    id: UUID
     donor_name: str
     food_name: str
     quantity_kg: float
@@ -38,6 +42,8 @@ class DonationOut(BaseModel):
     delivered_at: datetime | None
 
 class ReservationCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     reserved_by: str = Field(min_length=2, max_length=120)
 
 class StatsOut(BaseModel):
