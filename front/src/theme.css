@@ -940,7 +940,33 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  html { scroll-behavior: auto !important; }
+  .loading-mark,
+  .spin,
+  .hero-copy,
+  .hero-visual,
+  .mission-visual,
+  .mission-copy,
+  .section-heading,
+  .purpose-heading,
+  .impact-banner,
+  .form-card,
+  .publish-aside,
+  .metrics-strip .metric-card,
+  .impact-metrics .metric-card,
+  .donation-card,
+  .dialog-backdrop,
+  .dialog-card,
+  .notice,
+  .empty-state,
+  .activity-empty,
+  .mobile-nav,
+  .api-status-popover { animation: none !important; transform: none !important; }
+  .button,
+  .nav-link,
+  .text-link,
+  .donation-card,
+  .dialog-close { transition: none !important; }
 }
 @media (max-width: 1040px) and (min-width: 821px) {
   .metrics-strip .metric-card:nth-child(4), .impact-metrics .metric-card:nth-child(4) { border-left: 1px solid #d9ded3; border-top: 0; padding-top: 5px; }
