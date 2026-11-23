@@ -14,6 +14,13 @@ Base URL local: `http://localhost:8000/api` · documentación interactiva: `http
 | GET | `/community-kitchens` | Listado paginado de comedores públicos |
 | GET | `/community-kitchens/{id}` | Comedor por identificador o 404 |
 | GET | `/community-kitchens/stats` | Métricas agregadas de comedores |
+| POST | `/community-kitchens/{id}/claims` | Solicitud de administración autenticada, 201 o 409 |
+| GET | `/community-kitchens/{id}/profile` | Última versión pública o 404 |
+| PUT | `/community-kitchens/{id}/profile` | Enviar versión de perfil a revisión, 202 o 409 |
+| GET | `/admin/community-kitchen-claims` | Solicitudes para moderación, solo admin |
+| PATCH | `/admin/community-kitchen-claims/{id}/decision` | Aprobar/rechazar solicitud, solo admin |
+| GET | `/admin/community-kitchen-profiles` | Versiones para moderación, solo admin |
+| PATCH | `/admin/community-kitchen-profiles/{id}/decision` | Publicar/rechazar versión, solo admin |
 | POST | `/auth/register` | Crear cuenta con rol `donor`, 201 |
 | POST | `/auth/login` | Iniciar sesión y recibir JWT Bearer |
 | POST | `/auth/logout` | Revocar token Bearer actual, 204 |
@@ -104,6 +111,16 @@ Datos solo de ejemplo. `estimated_servings` = parte entera de kg entregados / 0.
 `GET /community-kitchens/{id}` devuelve un registro o 404. La respuesta incluye el código y nombre publicados, distrito, UBIGEO, coordenadas WGS84, modalidad, estado informado por la fuente y cantidad agregada de usuarios cuando está disponible. `address` puede ser nulo: la fuente también contiene direcciones específicas que no se guardan por privacidad. `verified_at` queda nulo; `source_status` no acredita operación actual.
 
 `GET /community-kitchens/stats` resume `total`, registros con coordenadas (`located`), distritos, estados publicados y conteos de usuarios reportados por la fuente. `source_reported_users_total` suma esos valores; no representa personas únicas. Este endpoint separado conserva intacta la respuesta existente de `GET /stats`.
+
+### Claims y perfiles
+
+`POST /community-kitchens/{id}/claims` requiere `Authorization: Bearer <token>` y un cuerpo vacío `{}`. No acepta texto libre ni datos personales; la cuenta se obtiene del token y `account_id` u otros campos se rechazan. Una cuenta puede tener una sola solicitud `pending` a la vez; otras cuentas pueden solicitar administrar el mismo comedor. Un administrador debe verificar la solicitud por un canal autorizado y rechazarla si no puede confirmar la representación. Quien presentó una solicitud no puede revisarla, aunque sea administrador. Aprobar crea una membresía activa `kitchen`; si la cuenta era `donor`, `/auth/me` devuelve `kitchen` desde la misma sesión.
+
+`PUT /community-kitchens/{id}/profile` requiere una membresía `kitchen` activa y los campos `description`, `operating_hours`, `institutional_location` y `needs` (cada uno puede ser `null`; se requiere al menos uno con contenido). No incluyas nombres ni contactos de responsables, ni datos que permitan identificar beneficiarios. El validador rechaza patrones obvios de correo, teléfonos peruanos y DNI etiquetados de ocho dígitos; no detecta nombres propios. La respuesta es una versión `pending`. Un administrador debe revisar cada campo y publicar con `decision: "approved"` o rechazar con `decision: "rejected"`; debe rechazar datos personales o información identificable. El autor no puede moderar su propia versión. Solo versiones publicadas aparecen en `GET /community-kitchens/{id}/profile`. Las versiones publicadas anteriores continúan visibles mientras una nueva revisión está pendiente o rechazada. Los campos del perfil se guardan separados de la ficha importada de IDEP.
+
+La moderación requiere `role=admin`. La API no acepta un `account_id` para decidir qué usuario reclama o edita; usa la identidad verificada del token. Guía de moderación: confirmar externamente la representación del claim; revisar todas las versiones de perfil; no aprobar nombres/contactos de responsables ni datos identificables de beneficiarios; rechazar cualquier contenido de ese tipo. La validación automática cubre solo formatos evidentes y no sustituye esa revisión.
+
+No hay auto-registro de administradores. El primer rol `admin` debe asignarlo manualmente un operador autorizado después de verificar la cuenta, con una actualización SQL limitada al correo exacto y validando que afecte una sola fila.
 
 ## Manejo de errores
 FastAPI usa `{"detail":"mensaje"}` y validaciones HTTP 422. Frontend no debe inventar otro formato. Modificaciones del contrato requieren coordinación de ambos integrantes.

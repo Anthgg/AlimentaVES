@@ -88,6 +88,74 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS community_kitchens_name_idx "
             "ON community_kitchens(name)"
         )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS community_kitchen_claims (
+                id UUID PRIMARY KEY,
+                kitchen_id BIGINT NOT NULL
+                    REFERENCES community_kitchens(id) ON DELETE RESTRICT,
+                account_id UUID NOT NULL
+                    REFERENCES auth_users(id) ON DELETE CASCADE,
+                status VARCHAR(12) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected')),
+                submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                reviewed_by UUID REFERENCES auth_users(id) ON DELETE SET NULL,
+                reviewed_at TIMESTAMPTZ
+            )
+        """)
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS community_kitchen_claims_pending_account_idx "
+            "ON community_kitchen_claims(account_id) WHERE status = 'pending'"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS community_kitchen_claims_status_idx "
+            "ON community_kitchen_claims(status, submitted_at)"
+        )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS community_kitchen_memberships (
+                kitchen_id BIGINT NOT NULL
+                    REFERENCES community_kitchens(id) ON DELETE RESTRICT,
+                account_id UUID NOT NULL
+                    REFERENCES auth_users(id) ON DELETE CASCADE,
+                role VARCHAR(16) NOT NULL DEFAULT 'kitchen'
+                    CHECK (role = 'kitchen'),
+                status VARCHAR(12) NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'revoked')),
+                approved_by UUID REFERENCES auth_users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (kitchen_id, account_id)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS community_kitchen_memberships_account_idx "
+            "ON community_kitchen_memberships(account_id, status)"
+        )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS community_kitchen_profiles (
+                id UUID PRIMARY KEY,
+                kitchen_id BIGINT NOT NULL
+                    REFERENCES community_kitchens(id) ON DELETE RESTRICT,
+                description VARCHAR(2000),
+                operating_hours VARCHAR(500),
+                institutional_location VARCHAR(500),
+                needs VARCHAR(2000),
+                status VARCHAR(12) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'published', 'rejected')),
+                submitted_by UUID REFERENCES auth_users(id) ON DELETE SET NULL,
+                submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                reviewed_by UUID REFERENCES auth_users(id) ON DELETE SET NULL,
+                reviewed_at TIMESTAMPTZ
+            )
+        """)
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS community_kitchen_profiles_pending_idx "
+            "ON community_kitchen_profiles(kitchen_id) WHERE status = 'pending'"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS community_kitchen_profiles_published_submitted_idx "
+            "ON community_kitchen_profiles(kitchen_id, submitted_at DESC) "
+            "WHERE status = 'published'"
+        )
 
 
 def _id(value: str) -> UUID | None:
@@ -319,3 +387,172 @@ def get_community_kitchen(kitchen_id: int) -> dict | None:
             "SELECT * FROM community_kitchens WHERE id = %s", (kitchen_id,)
         ).fetchone()
     return dict(row) if row is not None else None
+
+
+def is_active_community_kitchen_member(kitchen_id: int, account_id: UUID) -> bool:
+    with connect() as conn:
+        row = conn.execute(
+            """SELECT 1 FROM community_kitchen_memberships
+               WHERE kitchen_id = %s AND account_id = %s
+                 AND role = 'kitchen' AND status = 'active'""",
+            (kitchen_id, account_id),
+        ).fetchone()
+    return row is not None
+
+
+def create_community_kitchen_claim(kitchen_id: int, account_id: UUID) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """INSERT INTO community_kitchen_claims
+                   (id, kitchen_id, account_id)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (account_id) WHERE status = 'pending' DO NOTHING
+               RETURNING id, kitchen_id, status, submitted_at, reviewed_at""",
+            (uuid4(), kitchen_id, account_id),
+        ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def list_community_kitchen_claims(status: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT claim.id, claim.kitchen_id, claim.account_id,
+                      account.email AS account_email, kitchen.name AS kitchen_name,
+                      claim.status, claim.submitted_at,
+                      claim.reviewed_by, claim.reviewed_at
+               FROM community_kitchen_claims AS claim
+               JOIN community_kitchens AS kitchen ON kitchen.id = claim.kitchen_id
+               JOIN auth_users AS account ON account.id = claim.account_id
+               WHERE claim.status = %s
+               ORDER BY claim.submitted_at, claim.id""",
+            (status,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def review_community_kitchen_claim(
+    claim_id: UUID, decision: str, reviewed_by: UUID
+) -> tuple[dict | None, bool]:
+    with connect() as conn:
+        claim = conn.execute(
+            """SELECT id, kitchen_id, account_id, status, submitted_at,
+                      reviewed_by, reviewed_at
+               FROM community_kitchen_claims WHERE id = %s FOR UPDATE""",
+            (claim_id,),
+        ).fetchone()
+        if claim is None:
+            return None, False
+        if claim["status"] != "pending":
+            return dict(claim), False
+        if claim["account_id"] == reviewed_by:
+            return dict(claim), False
+
+        updated = conn.execute(
+            """UPDATE community_kitchen_claims
+               SET status = %s, reviewed_by = %s, reviewed_at = NOW()
+               WHERE id = %s AND status = 'pending'
+               RETURNING id, kitchen_id, status, submitted_at,
+                         reviewed_by, reviewed_at""",
+            (decision, reviewed_by, claim_id),
+        ).fetchone()
+        if decision == "approved":
+            conn.execute(
+                """INSERT INTO community_kitchen_memberships
+                       (kitchen_id, account_id, role, status, approved_by)
+                   VALUES (%s, %s, 'kitchen', 'active', %s)
+                   ON CONFLICT (kitchen_id, account_id) DO UPDATE SET
+                       role = 'kitchen', status = 'active', approved_by = EXCLUDED.approved_by,
+                       updated_at = NOW()""",
+                (claim["kitchen_id"], claim["account_id"], reviewed_by),
+            )
+            conn.execute(
+                "UPDATE auth_users SET role = 'kitchen' "
+                "WHERE id = %s AND role = 'donor'",
+                (claim["account_id"],),
+            )
+    return dict(updated), True
+
+
+def submit_community_kitchen_profile(
+    kitchen_id: int, submitted_by: UUID, fields: dict
+) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """INSERT INTO community_kitchen_profiles
+                   (id, kitchen_id, description, operating_hours,
+                    institutional_location, needs, submitted_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (kitchen_id) WHERE status = 'pending' DO NOTHING
+               RETURNING id, kitchen_id, description, operating_hours,
+                         institutional_location, needs, status, submitted_at,
+                         reviewed_at""",
+            (
+                uuid4(), kitchen_id, fields["description"],
+                fields["operating_hours"], fields["institutional_location"],
+                fields["needs"], submitted_by,
+            ),
+        ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def get_published_community_kitchen_profile(kitchen_id: int) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            """SELECT id, kitchen_id, description, operating_hours,
+                      institutional_location, needs, status, submitted_at,
+                      reviewed_at
+               FROM community_kitchen_profiles
+               WHERE kitchen_id = %s AND status = 'published'
+               ORDER BY submitted_at DESC, reviewed_at DESC, id DESC
+               LIMIT 1""",
+            (kitchen_id,),
+        ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def list_community_kitchen_profiles(status: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """SELECT profile.id, profile.kitchen_id, kitchen.name AS kitchen_name,
+                      profile.description, profile.operating_hours,
+                      profile.institutional_location, profile.needs, profile.status,
+                      profile.submitted_by, account.email AS submitter_email,
+                      profile.submitted_at, profile.reviewed_by, profile.reviewed_at
+               FROM community_kitchen_profiles AS profile
+               JOIN community_kitchens AS kitchen ON kitchen.id = profile.kitchen_id
+               LEFT JOIN auth_users AS account ON account.id = profile.submitted_by
+               WHERE profile.status = %s
+               ORDER BY profile.submitted_at, profile.id""",
+            (status,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def review_community_kitchen_profile(
+    profile_id: UUID, decision: str, reviewed_by: UUID
+) -> tuple[dict | None, bool]:
+    profile_status = "published" if decision == "approved" else "rejected"
+    with connect() as conn:
+        profile = conn.execute(
+            """SELECT id, kitchen_id, description, operating_hours,
+                      institutional_location, needs, status, submitted_at,
+                      submitted_by, reviewed_by, reviewed_at
+               FROM community_kitchen_profiles WHERE id = %s FOR UPDATE""",
+            (profile_id,),
+        ).fetchone()
+        if profile is None:
+            return None, False
+        if profile["status"] != "pending":
+            return dict(profile), False
+        if profile["submitted_by"] == reviewed_by:
+            return dict(profile), False
+        row = conn.execute(
+            """UPDATE community_kitchen_profiles
+               SET status = %s, reviewed_by = %s, reviewed_at = NOW()
+               WHERE id = %s AND status = 'pending'
+               RETURNING id, kitchen_id, description, operating_hours,
+                         institutional_location, needs, status, submitted_at,
+                         reviewed_at""",
+            (profile_status, reviewed_by, profile_id),
+        ).fetchone()
+    return dict(row), True

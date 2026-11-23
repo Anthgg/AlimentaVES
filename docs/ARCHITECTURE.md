@@ -29,6 +29,8 @@ Navegador
 
 La tabla `community_kitchens` conserva comedores publicados por IDEP para Villa El Salvador. La importación es idempotente y usa el código de la fuente; las solicitudes de la API leen desde PostgreSQL. La descarga conserva únicamente campos públicos permitidos y geometría WGS84.
 
+Los claims, las membresías y las versiones de perfil se guardan en tablas separadas con claves foráneas hacia las cuentas y los comedores. La fuente IDEP no se sobrescribe. Las solicitudes de claim requieren una cuenta y aprobación administrativa; esta crea una membresía activa `kitchen`. Cada cambio de perfil crea una versión pendiente; el público solo ve la última aprobada y las versiones anteriores permanecen visibles durante la revisión.
+
 El backend registra cuentas donantes y emite tokens Bearer firmados con HS256. Los roles `donor`, `kitchen` y `admin` se guardan en PostgreSQL; no hay una ruta pública para asignarlos. El cierre de sesión conserva el `jti` revocado hasta que vence el token. Las rutas de donaciones todavía no aplican autenticación ni permisos, para mantener el flujo actual hasta integrar esa protección con el cliente.
 
 Las métricas de comedores se consultan en `GET /api/community-kitchens/stats`. Se mantienen separadas de `GET /api/stats`, cuyo contrato de estadísticas de donaciones permanece igual.
