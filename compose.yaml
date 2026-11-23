@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgresql://alimentaves:alimentaves_local_dev@db:5432/alimentaves
       ALIMENTAVES_TEST_DATABASE_URL: postgresql://alimentaves:alimentaves_local_dev@db:5432/alimentaves_test
+      MEDIA_STORAGE_PATH: /data/media
       DEMO_SEED: "1"
       FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       JWT_SECRET: ${JWT_SECRET:-}
@@ -29,6 +30,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./back:/app
+      - media_data:/data/media
     depends_on:
       db:
         condition: service_healthy
@@ -56,4 +58,5 @@ services:
 
 volumes:
   postgres_data:
+  media_data:
   alimentaves_node_modules:
